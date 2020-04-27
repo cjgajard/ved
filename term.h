@@ -9,8 +9,8 @@ struct termcfg {
 	int x, y;
 };
 
-int termcfg_init ();
-int termcfg_close ();
+int termcfg_init (void);
+int termcfg_close (void);
 
 extern struct termcfg T;
 

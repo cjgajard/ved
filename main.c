@@ -58,25 +58,15 @@ static int args_read (int argc, char *argv[])
 	return 0;
 }
 
-static int editor_ui_clear (void)
-{
-	term_move_topleft();
-	for (int y = 0; y < T.lines; y++) {
-		printf("\x1b[K\x1b[B");
-	}
-	term_move_topleft();
-	term_commit();
-	return 0;
-}
-
 static int editor_uibg_draw (void)
 {
+	term_move_topleft();
 	for (int y = 1; y < T.lines; y++) {
 		printf("\x1b[K~");
 		if (y < T.lines - 1)
 			printf("\r\n");
 	}
-	fflush(stdout);
+	term_commit();
 	return 0;
 }
 
@@ -156,7 +146,6 @@ int main (int argc, char *argv[])
 	// if (!(Screen = screen_create()))
 	// 	return 2;
 	echox = initial_echox;
-
 main_loop:
 	if (update_ui || update_buf)
 		editor_uibg_draw();
@@ -216,10 +205,8 @@ main_loop:
 		update_ui = 1;
 		break;
 	}
-
 	goto main_loop;
 shutdown:
-	editor_ui_clear();
 	bufl_close(BufL);
 	if ((err = termcfg_close()))
 		return err;
