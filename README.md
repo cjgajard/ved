@@ -4,6 +4,7 @@ ved is a visual editor
 
 ## Features
 
-* Arbitrary modes.
-* Opened files tree.
+* Custom modes.
+* Custom gutter columns.
 * Picture-in-picture interfaces.
+  - Opened files tree.

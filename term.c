@@ -9,21 +9,21 @@
 
 static struct termios tcattr;
 
-static int tcattr_save()
+static int tcattr_save (void)
 {
 	if (tcgetattr(STDIN_FILENO, &tcattr) == -1)
 		return errno;
 	return 0;
 }
 
-static int tcattr_restore()
+static int tcattr_restore (void)
 {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &tcattr) == -1)
 		return errno;
 	return 0;
 }
 
-static int tcattr_raw()
+static int tcattr_raw (void)
 {
 	struct termios attr = tcattr;
 	attr.c_cflag |= CS8;
@@ -37,24 +37,30 @@ static int tcattr_raw()
 	return 0;
 }
 
-ssize_t term_erase_display(void)
+ssize_t term_commit (void)
+{
+	return fflush(stdout);
+}
+
+ssize_t term_erase_display (void)
 {
 	return write(STDOUT_FILENO, "\x1b[2J", 4);
 }
 
-ssize_t term_move_topleft(void)
+ssize_t term_move_topleft (void)
 {
-	return write(STDOUT_FILENO, "\x1b[H", 3);
+	// return write(STDOUT_FILENO, "\x1b[H", 3);
+	return printf("\x1b[H");
 }
 
-ssize_t term_move_cursor(void)
+ssize_t term_move_cursor (void)
 {
 	char buf[32];
 	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", T.y + 1, T.x + 1);
 	return write(STDOUT_FILENO, buf, strlen(buf));
 }
 
-int termcfg_init()
+int termcfg_init (void)
 {
 	T.x = 0;
 	T.y = 0;
@@ -103,14 +109,12 @@ int termcfg_init()
 	return 0;
 }
 
-int termcfg_close()
+int termcfg_close (void)
 {
 	int err;
 	if ((err = tcattr_restore())) {
 		perror("tcattr_restore");
 		return err;
 	}
-	printf("\x1b[%dH\x1b[K", T.lines);
-	fflush(stdout);
 	return 0;
 }

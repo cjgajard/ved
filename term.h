@@ -9,11 +9,12 @@ struct termcfg {
 	int x, y;
 };
 
-int termcfg_init();
-int termcfg_close();
+int termcfg_init ();
+int termcfg_close ();
 
 extern struct termcfg T;
 
-ssize_t term_move_cursor(void);
-ssize_t term_move_topleft(void);
+ssize_t term_commit (void);
+ssize_t term_move_cursor (void);
+ssize_t term_move_topleft (void);
 #endif

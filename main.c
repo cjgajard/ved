@@ -45,56 +45,96 @@ void screen_destroy (struct screen *this)
 	free(this);
 }
 
-static int editor_draw_ui (void)
-{
-	for (int y = 0; y < T.lines; y++) {
-		write(STDOUT_FILENO, "~\x1b[K", 4);
-		if (y < T.lines - 1)
-			write(STDOUT_FILENO, "\r\n", 2);
-	}
-	fflush(stdout);
-	return 0;
-}
-
-// static int editor_draw_buffer (void)
-// {
-//         char *buf = NULL;
-//         if (!BufL) {
-//                 fprintf(stderr, "not BufL\n");
-//                 return 1;
-//         }
-//         if (!BufL->value.dst) {
-//                 fprintf(stderr, "not BufL->value->dst\n");
-//                 return 1;
-//         }
-//         buf = BufL->value.dst;
-//         for (int y = 0; y < T.lines - 1; y++) {
-//                 char *li = Screen->lines[y];
-//                 int i = 0;
-//                 char b;
-//                 while ((b = *buf++)) {
-//                         if (b == '\n')
-//                                 break;
-//                         if (i >= Screen->lsiz - 3)
-//                                 break;
-//                         li[i++] = b;
-//                 }
-//                 li[i++] = '\r';
-//                 li[i++] = '\n';
-//                 li[i++] = '\0';
-//                 write(STDOUT_FILENO, li, strlen(li));
-//         }
-//         return 0;
-// }
-
 static int args_read (int argc, char *argv[])
 {
 	for (int i = 1; i < argc; i++) {
 		struct buf *b = buf_create(argv[i]);
 		if (!b)
-			return 1;
+			continue;
 		bufl_push(&BufL, b);
 	}
+	return 0;
+}
+
+static int editor_ui_clear (void)
+{
+	term_move_topleft();
+	for (int y = 0; y < T.lines; y++) {
+		printf("\x1b[K\x1b[B");
+	}
+	term_move_topleft();
+	term_commit();
+	return 0;
+}
+
+static int editor_uibg_draw (void)
+{
+	for (int y = 1; y < T.lines; y++) {
+		printf("\x1b[K~");
+		if (y < T.lines - 1)
+			printf("\r\n");
+	}
+	fflush(stdout);
+	return 0;
+}
+
+static int editor_buf_draw (void)
+{
+	struct buf b;
+	if (bufl_read(BufL, &b))
+		return 1;
+	if (!b.txt)
+		return 2;
+	int fpos = 0;
+	term_move_topleft();
+	for (int i = 1; i < T.lines; i++) {
+		printf("\x1b[K");
+		for (int j = 0; j < T.cols; j++) {
+			char byte;
+			if (fpos++ >= b.txtsiz)
+				return 0;
+			if (!(byte = *b.txt++))
+				return 0;
+			if (byte == '\n')
+				break;
+			printf("%c", byte);
+		}
+		printf("\r\n");
+	}
+	return 0;
+}
+
+static int initial_echox = 6;
+static int echox;
+
+static int editor_echo_draw (unsigned char c)
+{
+	printf("\x1b[%dH0x%02x\x1b[%dG", T.lines, c, echox);
+	if (c == 0xd) {
+		echox = initial_echox;
+		printf("\x1b[%dG\x1b[K", echox);
+	}
+	else if (isprint(c)) {
+		printf("%c", c);
+		echox += 1;
+	}
+	else if (iscntrl(c)) {
+		struct ascii a = ascii_ctrl[c == 0x7f ? 0x20 : c];
+		printf("<%s>", a.name);
+		echox += 2 + strlen(a.name);
+	}
+	else {
+		printf("<0x%02x>", c);
+		echox += 4;
+	}
+	term_commit();
+	return 0;
+}
+
+static int editor_uifg_draw (void)
+{
+	printf("\x1b[%dH\x1b[K", T.lines - 1);
+	bufl_print(BufL);
 	return 0;
 }
 
@@ -103,22 +143,33 @@ int main (int argc, char *argv[])
 	unsigned char c = 0;
 	int err = 0;
 
+	int update_buf = 1;
+	int update_ui = 1;
+	int update_echo = 0;
+
 	args_read(argc, argv);
 
 	if (termcfg_init())
 		return 1;
 	// if (!(Screen = screen_create()))
 	// 	return 2;
+	echox = initial_echox;
 
-	editor_draw_ui();
-	term_move_topleft();
-
-	// editor_draw_buffer();
-	// term_move_topleft();
-
-	int initial_echox = 6;
-	int echox = initial_echox;
 main_loop:
+	if (update_ui || update_buf)
+		editor_uibg_draw();
+	if (update_buf)
+		editor_buf_draw();
+	if (update_ui)
+		editor_uifg_draw();
+	if (update_echo)
+		editor_echo_draw(c);
+	term_move_cursor();
+
+	update_buf = 0;
+	update_ui = 0;
+	update_echo = 1;
+
 	if (read(STDIN_FILENO, &c, 1) == -1) {
 		perror("read");
 		err = errno;
@@ -152,31 +203,21 @@ main_loop:
 			term_move_cursor();
 		}
 		break;
+	case 'N':
+		bufl_enable(BufL);
+		update_buf = 1;
+		update_ui = 1;
+		break;
+	case 'P':
+		bufl_disable(BufL);
+		update_buf = 1;
+		update_ui = 1;
+		break;
 	}
 
-	printf("\x1b[%dH0x%02x\x1b[%dG", T.lines, c, echox);
-	if (c == 0xd) {
-		echox = initial_echox;
-		printf("\x1b[%dG\x1b[K", echox);
-	}
-	else if (isprint(c)) {
-		printf("%c", c);
-		echox += 1;
-	}
-	else if (iscntrl(c)) {
-		struct ascii a = ascii_ctrl[c == 0x7f ? 0x20 : c];
-		printf("<%s>", a.name);
-		echox += 2 + strlen(a.name);
-	}
-	else {
-		printf("<0x%02x>", c);
-		echox += 4;
-	}
-	fflush(stdout);
-
-	term_move_cursor();
 	goto main_loop;
 shutdown:
+	editor_ui_clear();
 	bufl_close(BufL);
 	if ((err = termcfg_close()))
 		return err;
