@@ -14,6 +14,7 @@ void buf_destroy (struct buf *this);
 struct bufl {
 	int skip;
 	struct bufl *next;
+	struct bufl *prev;
 	struct buf value;
 };
 

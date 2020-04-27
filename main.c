@@ -8,6 +8,8 @@
 #include "buf.h"
 #include "term.h"
 
+#define CTRL(x) ((x) & 0x1f)
+
 struct termcfg T;
 struct bufl *BufL;
 
@@ -176,7 +178,7 @@ main_loop:
 		goto shutdown;
 	}
 	switch (c) {
-	case '\x11':
+	case CTRL('Q'):
 		goto shutdown;
 		break;
 	case 'h':
@@ -203,12 +205,12 @@ main_loop:
 			term_move_cursor();
 		}
 		break;
-	case 'N':
+	case CTRL('N'):
 		bufl_enable(BufL);
 		update_buf = 1;
 		update_ui = 1;
 		break;
-	case 'P':
+	case CTRL('P'):
 		bufl_disable(BufL);
 		update_buf = 1;
 		update_ui = 1;
