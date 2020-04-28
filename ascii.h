@@ -8,6 +8,8 @@ struct ascii {
 	char help[27];
 };
 
+#define ASCII_DEL 0x7f
+
 struct ascii ascii_ctrl[0x21] = {
 	{ 0, "NUL", "null"},
 	{ 1, "SOH", "start of heading"},

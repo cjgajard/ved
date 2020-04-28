@@ -132,6 +132,11 @@ static int cmd_reset (void)
 
 static int cmd_update (char c)
 {
+	if (c == ASCII_DEL) {
+		if (cmdidx > 0)
+			cmd[--cmdidx] = 0;
+		return 0;
+	}
 	if (cmdidx < sizeof(cmd) - 1) {
 		cmd[cmdidx++] = c;
 		cmd[cmdidx] = 0;
@@ -141,6 +146,9 @@ static int cmd_update (char c)
 
 static int cmd_process (int *update)
 {
+	for (int i = 0, len = strlen(cmd); i < len; i++)
+		ascii_fprintc(stderr, cmd[i]);
+	fprintf(stderr, "\n");
 	if (!strncmp(cmd, "\x0f", 1)) {
 		struct buf *b = buf_create(cmd + 1);
 		if (b)
@@ -155,8 +163,7 @@ static int editor_echo_draw (unsigned char c)
 {
 	printf("\x1b[%dH\x1b[K0x%02x", T.lines, c);
 	printf(" ");
-	int len = strlen(cmd);
-	for (int i = 0; i < len; i++)
+	for (int i = 0, len = strlen(cmd); i < len; i++)
 		ascii_fprintc(stdout, cmd[i]);
 	term_commit();
 	return 0;
