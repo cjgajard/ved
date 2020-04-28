@@ -46,5 +46,5 @@ struct ascii ascii_ctrl[0x21] = {
 	{127, "DEL", "delete"},
 };
 
-int ascii_fprintc(FILE *f, char byte);
+int ascii_fprintc (FILE *f, char byte);
 #endif

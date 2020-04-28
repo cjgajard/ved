@@ -54,7 +54,7 @@ void screen_destroy (struct screen *this)
 	free(this);
 }
 
-int ascii_fprintc(FILE *f, char byte)
+int ascii_fprintc (FILE *f, char byte)
 {
 	int w = 0;
 	unsigned char c = byte;
@@ -121,41 +121,100 @@ static int editor_buf_draw (void)
 }
 
 static char cmd[256] = {0};
-static size_t cmdidx = 0;
+static size_t cmdwi = 0; /* command write index */
+static size_t cmdri = 0; /* command read index */
+static unsigned int cmduf = 0 /* command update flags */;
 
 static int cmd_reset (void)
 {
 	memset(cmd, 0, sizeof(cmd));
-	cmdidx = 0;
+	cmdwi = 0;
 	return 0;
 }
 
 static int cmd_update (char c)
 {
 	if (c == ASCII_DEL) {
-		if (cmdidx > 0)
-			cmd[--cmdidx] = 0;
+		if (cmdwi > 0)
+			cmd[--cmdwi] = 0;
 		return 0;
 	}
-	if (cmdidx < sizeof(cmd) - 1) {
-		cmd[cmdidx++] = c;
-		cmd[cmdidx] = 0;
+	if (cmdwi < sizeof(cmd) - 1) {
+		cmd[cmdwi++] = c;
+		cmd[cmdwi] = 0;
 	}
 	return 0;
 }
 
-static int cmd_process (int *update)
+static int cmd_process_fs (void)
 {
-	for (int i = 0, len = strlen(cmd); i < len; i++)
-		ascii_fprintc(stderr, cmd[i]);
-	fprintf(stderr, "\n");
-	if (!strncmp(cmd, "\x0f", 1)) {
-		struct buf *b = buf_create(cmd + 1);
-		if (b)
-			bufl_push(&BufL, b);
-		*update |= UPDATE_BUF | UPDATE_UI;
+	struct buf *b;
+	cmduf |= UPDATE_BUF | UPDATE_UI;
+
+	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
+		switch (cmd[cmdri++]) {
+		case 'e':
+			if ((b = buf_create(cmd + cmdri)))
+				bufl_push(&BufL, b);
+			break;
+		case 'n':
+			bufl_enable(BufL);
+			break;
+		case 'p':
+			bufl_disable(BufL);
+			break;
+		default:
+			return 0;
+		}
 	}
-	*update |= UPDATE_CMD;
+	return 0;
+}
+
+static int cmd_process_mv (void)
+{
+	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
+		switch (cmd[cmdri++]) {
+		case 'h':
+			if (T.x > 0) {
+				T.x--;
+				term_move_cursor();
+			}
+			break;
+		case 'j':
+			if (T.y < T.lines - 1) {
+				T.y++;
+				term_move_cursor();
+			}
+			break;
+		case 'k':
+			if (T.y > 0) {
+				T.y--;
+				term_move_cursor();
+			}
+			break;
+		case 'l':
+			if (T.x < T.cols - 1) {
+				T.x++;
+				term_move_cursor();
+			}
+			break;
+		}
+	}
+	return 0;
+}
+
+static int cmd_process (void)
+{
+	switch (cmd[cmdri++]) {
+	case ':':
+		cmd_process_fs();
+		break;
+	case 'm':
+		cmd_process_mv();
+		break;
+	}
+	cmdri = 0;
+	cmduf |= UPDATE_CMD;
 	return 0;
 }
 
@@ -181,7 +240,7 @@ int main (int argc, char *argv[])
 	int error = 0;
 	unsigned char c = 0;
 
-	int update = UPDATE_BUF | UPDATE_UI;
+	cmduf = UPDATE_BUF | UPDATE_UI;
 
 	args_read(argc, argv);
 
@@ -190,18 +249,21 @@ int main (int argc, char *argv[])
 	// if (!(Screen = screen_create()))
 	// 	return 2;
 main_loop:
-	if (update & (UPDATE_UI | UPDATE_BUF))
+	if (cmduf & (UPDATE_UI | UPDATE_BUF)) {
 		editor_uibg_draw();
-	if (update & UPDATE_BUF)
+	}
+	if (cmduf & UPDATE_BUF) {
 		editor_buf_draw();
-	if (update & UPDATE_UI)
+	}
+	if (cmduf & UPDATE_UI) {
 		editor_uifg_draw();
-	if (update & UPDATE_ECHO)
+	}
+	if (cmduf & UPDATE_ECHO)
 		editor_echo_draw(c);
-	if (update & UPDATE_CMD)
+	if (cmduf & UPDATE_CMD)
 		cmd_reset();
+	cmduf = (UPDATE_ECHO);
 	term_move_cursor();
-	update = (UPDATE_ECHO);
 
 	if (read(STDIN_FILENO, &c, 1) == -1) {
 		perror("read");
@@ -213,39 +275,7 @@ main_loop:
 		goto shutdown;
 		break;
 	case CTRL('m'):
-		cmd_process(&update);
-		break;
-	case CTRL('n'):
-		bufl_enable(BufL);
-		update |= UPDATE_BUF | UPDATE_UI;
-		break;
-	case CTRL('p'):
-		bufl_disable(BufL);
-		update |= UPDATE_BUF | UPDATE_UI;
-		break;
-	case 'h':
-		if (T.x > 0) {
-			T.x--;
-			term_move_cursor();
-		}
-		break;
-	case 'j':
-		if (T.y < T.lines - 1) {
-			T.y++;
-			term_move_cursor();
-		}
-		break;
-	case 'k':
-		if (T.y > 0) {
-			T.y--;
-			term_move_cursor();
-		}
-		break;
-	case 'l':
-		if (T.x < T.cols - 1) {
-			T.x++;
-			term_move_cursor();
-		}
+		cmd_process();
 		break;
 	}
 	cmd_update(c);
