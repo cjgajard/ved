@@ -26,5 +26,5 @@ int bufl_enable (struct bufl *this);
 int bufl_pull (struct bufl **this);
 int bufl_push (struct bufl **this, struct buf *b);
 int bufl_read (struct bufl *this, struct buf *b);
-int bufl_print (struct bufl *this);
+int bufl_fprint (struct bufl *this, FILE *f);
 #endif

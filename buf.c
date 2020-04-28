@@ -108,7 +108,7 @@ int bufl_close (struct bufl *this)
 	return 0;
 }
 
-int bufl_print (struct bufl *this)
+int bufl_fprint (struct bufl *this, FILE *f)
 {
 	struct bufl *node = this;
 	if (!node)
@@ -120,15 +120,15 @@ int bufl_print (struct bufl *this)
 	int w = 0;
 	while (node) {
 		if (w)
-			printf(" ");
+			fprintf(f, " ");
 		if (node->skip)
-			w += printf("\x1b[90m");
-		w += printf("%s", node->value.path);
+			w += fprintf(f, "\x1b[90m");
+		w += fprintf(f, "%s", node->value.path);
 		if (node->skip)
-			w += printf("\x1b[0m");
+			w += fprintf(f, "\x1b[0m");
 		node = node->prev;
 	}
 	if (w)
-		w += printf("\n");
+		w += fprintf(f, "\n");
 	return w;
 }

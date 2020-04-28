@@ -1,5 +1,6 @@
 #ifndef ASCII_h
 #define ASCII_h 1
+#include <bits/types/FILE.h>
 
 struct ascii {
 	unsigned char code;
@@ -42,4 +43,6 @@ struct ascii ascii_ctrl[0x21] = {
 	{31,  "US", "unit separator"},
 	{127, "DEL", "delete"},
 };
+
+int ascii_fprintc(FILE *f, char byte);
 #endif

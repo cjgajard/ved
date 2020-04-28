@@ -13,6 +13,13 @@
 struct termcfg T;
 struct bufl *BufL;
 
+enum update_flags {
+	UPDATE_ECHO = 1 << 0,
+	UPDATE_BUF = 1 << 1,
+	UPDATE_UI = 1 << 2,
+	UPDATE_CMD = 1 << 3,
+};
+
 struct screen {
 	int lsiz;
 	char **lines;
@@ -45,6 +52,23 @@ void screen_destroy (struct screen *this)
 		free(this->lines[i]);
 	free(this->lines);
 	free(this);
+}
+
+int ascii_fprintc(FILE *f, char byte)
+{
+	int w = 0;
+	unsigned char c = byte;
+	if (isprint(c)) {
+		w += fprintf(f, "%c", c);
+	}
+	else if (iscntrl(c)) {
+		struct ascii a = ascii_ctrl[c == 0x7f ? 0x20 : c];
+		w += fprintf(f, "<%s>", a.name);
+	}
+	else {
+		w += fprintf(f, "<0x%02x>", c);
+	}
+	return w;
 }
 
 static int args_read (int argc, char *argv[])
@@ -96,29 +120,44 @@ static int editor_buf_draw (void)
 	return 0;
 }
 
-static int initial_echox = 6;
-static int echox;
+static char cmd[256] = {0};
+static size_t cmdidx = 0;
+
+static int cmd_reset (void)
+{
+	memset(cmd, 0, sizeof(cmd));
+	cmdidx = 0;
+	return 0;
+}
+
+static int cmd_update (char c)
+{
+	if (cmdidx < sizeof(cmd) - 1) {
+		cmd[cmdidx++] = c;
+		cmd[cmdidx] = 0;
+	}
+	return 0;
+}
+
+static int cmd_process (int *update)
+{
+	if (!strncmp(cmd, "\x0f", 1)) {
+		struct buf *b = buf_create(cmd + 1);
+		if (b)
+			bufl_push(&BufL, b);
+		*update |= UPDATE_BUF | UPDATE_UI;
+	}
+	*update |= UPDATE_CMD;
+	return 0;
+}
 
 static int editor_echo_draw (unsigned char c)
 {
-	printf("\x1b[%dH0x%02x\x1b[%dG", T.lines, c, echox);
-	if (c == 0xd) {
-		echox = initial_echox;
-		printf("\x1b[%dG\x1b[K", echox);
-	}
-	else if (isprint(c)) {
-		printf("%c", c);
-		echox += 1;
-	}
-	else if (iscntrl(c)) {
-		struct ascii a = ascii_ctrl[c == 0x7f ? 0x20 : c];
-		printf("<%s>", a.name);
-		echox += 2 + strlen(a.name);
-	}
-	else {
-		printf("<0x%02x>", c);
-		echox += 4;
-	}
+	printf("\x1b[%dH\x1b[K0x%02x", T.lines, c);
+	printf(" ");
+	int len = strlen(cmd);
+	for (int i = 0; i < len; i++)
+		ascii_fprintc(stdout, cmd[i]);
 	term_commit();
 	return 0;
 }
@@ -126,18 +165,16 @@ static int editor_echo_draw (unsigned char c)
 static int editor_uifg_draw (void)
 {
 	printf("\x1b[%dH\x1b[K", T.lines - 1);
-	bufl_print(BufL);
+	bufl_fprint(BufL, stdout);
 	return 0;
 }
 
 int main (int argc, char *argv[])
 {
+	int error = 0;
 	unsigned char c = 0;
-	int err = 0;
 
-	int update_buf = 1;
-	int update_ui = 1;
-	int update_echo = 0;
+	int update = UPDATE_BUF | UPDATE_UI;
 
 	args_read(argc, argv);
 
@@ -145,30 +182,39 @@ int main (int argc, char *argv[])
 		return 1;
 	// if (!(Screen = screen_create()))
 	// 	return 2;
-	echox = initial_echox;
 main_loop:
-	if (update_ui || update_buf)
+	if (update & (UPDATE_UI | UPDATE_BUF))
 		editor_uibg_draw();
-	if (update_buf)
+	if (update & UPDATE_BUF)
 		editor_buf_draw();
-	if (update_ui)
+	if (update & UPDATE_UI)
 		editor_uifg_draw();
-	if (update_echo)
+	if (update & UPDATE_ECHO)
 		editor_echo_draw(c);
+	if (update & UPDATE_CMD)
+		cmd_reset();
 	term_move_cursor();
-
-	update_buf = 0;
-	update_ui = 0;
-	update_echo = 1;
+	update = (UPDATE_ECHO);
 
 	if (read(STDIN_FILENO, &c, 1) == -1) {
 		perror("read");
-		err = errno;
+		error = 1;
 		goto shutdown;
 	}
 	switch (c) {
-	case CTRL('Q'):
+	case CTRL('q'):
 		goto shutdown;
+		break;
+	case CTRL('m'):
+		cmd_process(&update);
+		break;
+	case CTRL('n'):
+		bufl_enable(BufL);
+		update |= UPDATE_BUF | UPDATE_UI;
+		break;
+	case CTRL('p'):
+		bufl_disable(BufL);
+		update |= UPDATE_BUF | UPDATE_UI;
 		break;
 	case 'h':
 		if (T.x > 0) {
@@ -194,21 +240,12 @@ main_loop:
 			term_move_cursor();
 		}
 		break;
-	case CTRL('N'):
-		bufl_enable(BufL);
-		update_buf = 1;
-		update_ui = 1;
-		break;
-	case CTRL('P'):
-		bufl_disable(BufL);
-		update_buf = 1;
-		update_ui = 1;
-		break;
 	}
+	cmd_update(c);
 	goto main_loop;
 shutdown:
 	bufl_close(BufL);
-	if ((err = termcfg_close()))
-		return err;
-	return err;
+	if (termcfg_close())
+		error = 2;
+	return error;
 }
