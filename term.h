@@ -17,4 +17,5 @@ extern struct termcfg T;
 ssize_t term_commit (void);
 ssize_t term_move_cursor (void);
 ssize_t term_move_topleft (void);
+ssize_t term_read (unsigned char *c);
 #endif

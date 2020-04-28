@@ -1,6 +1,6 @@
 # ved
 
-ved is a visual editor
+ved is an alterative visual evolution of ed.
 
 ## Features
 

@@ -74,6 +74,15 @@ static int term_get_cursor (int *row, int *col)
 	return 0;
 }
 
+ssize_t term_read (unsigned char *c)
+{
+	if (read(STDIN_FILENO, c, 1) == -1) {
+		perror("read");
+		return 1;
+	}
+	return 0;
+}
+
 int termcfg_init (void)
 {
 	T.x = 0;
