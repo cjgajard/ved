@@ -30,7 +30,7 @@ int cmd_update (char c)
 	return 0;
 }
 
-int cmd_process_fs (void)
+static int cmd_process_fs (void)
 {
 	struct buf *b;
 	cmduf |= UPDATE_BUF | UPDATE_UI;
@@ -54,7 +54,7 @@ int cmd_process_fs (void)
 	return 0;
 }
 
-int cmd_process_mv (void)
+static int cmd_process_mv (void)
 {
 	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
 		switch (cmd[cmdri++]) {
@@ -87,6 +87,31 @@ int cmd_process_mv (void)
 	return 0;
 }
 
+static int cmd_process_insert (int append)
+{
+	struct buf *b;
+	if (bufl_read(BufL, &b))
+		return 1;
+
+	char *cmdstr = cmd + cmdri;
+	size_t cmdlen = strlen(cmdstr);
+	if (b->len + cmdlen + 1 >= b->siz) {
+		fprintf(stderr, "txt should be resized\n"); // FIXME
+		return 2;
+	}
+
+	int pos = buf_pos(b, T.x, T.y);
+	if (append)
+		pos++;
+	memmove(b->txt + pos + cmdlen, b->txt + pos, b->len - pos);
+	b->len += cmdlen;
+	b->txt[b->len + 1] = 0;
+	memcpy(b->txt + pos, cmdstr, cmdlen);
+
+	cmduf |= UPDATE_BUF;
+	return 0;
+}
+
 int cmd_process (void)
 {
 	switch (cmd[cmdri++]) {
@@ -95,6 +120,12 @@ int cmd_process (void)
 		break;
 	case 'm':
 		cmd_process_mv();
+		break;
+	case 'a':
+		cmd_process_insert(1);
+		break;
+	case 'i':
+		cmd_process_insert(0);
 		break;
 	}
 	cmdri = 0;

@@ -3,6 +3,24 @@
 #include <string.h>
 #include "buf.h"
 
+int buf_pos (struct buf *this, int x, int y)
+{
+	size_t fpos = 0;
+	for (int i = 0; i < y; i++) {
+		while (fpos < this->siz && this->txt[fpos++] != '\n');
+	}
+	for (int i = 0; i < x; i++) {
+		if (fpos >= this->siz)
+			break;
+		char c = this->txt[fpos++];
+		if (c == '\n')
+			break;
+		if (c == '\t')
+			i += 7; // FIXME
+	}
+	return fpos;
+}
+
 struct buf *buf_create (char *path)
 {
 	struct buf *this;
@@ -12,7 +30,8 @@ struct buf *buf_create (char *path)
 	if (!(this->txt = malloc(BUFSIZ)))
 		return NULL;
 	memset(this->txt, 0, BUFSIZ);
-	this->txtsiz = BUFSIZ;
+	this->siz = BUFSIZ;
+	this->len = 0;
 
 	strncpy(this->path, path, sizeof(this->path));
 
@@ -22,6 +41,7 @@ struct buf *buf_create (char *path)
 	fread(this->txt, 1, BUFSIZ, src);
 	fclose(src);
 	this->txt[BUFSIZ - 1] = 0;
+	this->len = strlen(this->txt);
 
 	return this;
 }
@@ -33,44 +53,10 @@ void buf_destroy (struct buf *this)
 	free(this);
 }
 
-int bufl_push (struct bufl **this, struct buf *b)
+int bufl_close (struct bufl *this)
 {
-	struct bufl **node = this;
-	struct bufl *new;
-	new = malloc(sizeof(*new));
-	new->skip = 0;
-	new->next = *node;
-	new->prev = NULL;
-	new->value = *b;
-	*node = new;
-	if (new->next)
-		new->next->prev = new;
+	while (!bufl_pull(&this));
 	return 0;
-}
-
-int bufl_pull (struct bufl **this)
-{
-	struct bufl *node = *this;
-	if (!node)
-		return 1;
-	*this = node->next;
-	if (*this)
-		(*this)->prev = NULL;
-	free(node);
-	return 0;
-}
-
-int bufl_read (struct bufl *this, struct buf *b)
-{
-	struct bufl *node = this;
-	while (node) {
-		if (!node->skip) {
-			*b = node->value;
-			return 0;
-		}
-		node = node->next;
-	}
-	return 1;
 }
 
 int bufl_disable (struct bufl *this)
@@ -101,13 +87,6 @@ int bufl_enable (struct bufl *this)
 	return 1;
 }
 
-
-int bufl_close (struct bufl *this)
-{
-	while (!bufl_pull(&this));
-	return 0;
-}
-
 int bufl_fprint (struct bufl *this, FILE *f)
 {
 	struct bufl *node = this;
@@ -131,4 +110,44 @@ int bufl_fprint (struct bufl *this, FILE *f)
 	if (w)
 		w += fprintf(f, "\n");
 	return w;
+}
+
+int bufl_pull (struct bufl **this)
+{
+	struct bufl *node = *this;
+	if (!node)
+		return 1;
+	*this = node->next;
+	if (*this)
+		(*this)->prev = NULL;
+	free(node);
+	return 0;
+}
+
+int bufl_push (struct bufl **this, struct buf *b)
+{
+	struct bufl **node = this;
+	struct bufl *new;
+	new = malloc(sizeof(*new));
+	new->skip = 0;
+	new->next = *node;
+	new->prev = NULL;
+	new->value = *b;
+	*node = new;
+	if (new->next)
+		new->next->prev = new;
+	return 0;
+}
+
+int bufl_read (struct bufl *this, struct buf **b)
+{
+	struct bufl *node = this;
+	while (node) {
+		if (!node->skip) {
+			*b = &node->value;
+			return 0;
+		}
+		node = node->next;
+	}
+	return 1;
 }

@@ -35,20 +35,20 @@ static int editor_uibg_draw (void)
 
 static int editor_buf_draw (void)
 {
-	struct buf b;
+	struct buf *b;
 	if (bufl_read(BufL, &b))
 		return 1;
-	if (!b.txt)
+	if (!b->txt)
 		return 2;
-	int fpos = 0;
+	size_t fpos = 0;
 	term_move_topleft();
 	for (int i = 1; i < T.lines; i++) {
 		printf("\x1b[K");
 		for (int j = 0; j < T.cols; j++) {
 			char byte;
-			if (fpos++ >= b.txtsiz)
+			if (fpos >= b->siz)
 				return 0;
-			if (!(byte = *b.txt++))
+			if (!(byte = b->txt[fpos++]))
 				return 0;
 			if (byte == '\n')
 				break;
@@ -91,7 +91,7 @@ int main (int argc, char *argv[])
 	// if (!(Screen = screen_create()))
 	// 	return 2;
 main_loop:
-	if (cmduf & (UPDATE_UI | UPDATE_BUF))
+	if (cmduf & UPDATE_BUF)
 		editor_uibg_draw();
 	if (cmduf & UPDATE_BUF)
 		editor_buf_draw();
@@ -101,13 +101,15 @@ main_loop:
 		editor_echo_draw(c);
 	if (cmduf & UPDATE_CMD)
 		cmd_reset();
-	cmduf = (UPDATE_ECHO);
+	cmduf = UPDATE_ECHO;
+
 	term_move_cursor();
 
 	if (term_read(&c)) {
 		error = 1;
 		goto shutdown;
 	}
+
 	switch (c) {
 	case CTRL('q'):
 		goto shutdown;
@@ -115,6 +117,7 @@ main_loop:
 		cmd_process();
 		break;
 	}
+
 	cmd_update(c);
 	goto main_loop;
 shutdown:
