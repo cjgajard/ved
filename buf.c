@@ -1,11 +1,10 @@
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include "buf.h"
 
-int buf_pos (struct buf *this, int x, int y)
+size_t buf_pos (struct buf *this, int x, int y)
 {
-	size_t fpos = 0;
+	size_t fpos = buf_scroll_pos(this);
 	for (int i = 0; i < y; i++) {
 		while (fpos < this->siz && this->txt[fpos++] != '\n');
 	}
@@ -21,6 +20,15 @@ int buf_pos (struct buf *this, int x, int y)
 	return fpos;
 }
 
+size_t buf_scroll_pos (struct buf *this)
+{
+	size_t fpos = 0;
+	for (size_t i = 0; i < this->scroll; i++) {
+		while (fpos < this->siz && this->txt[fpos++] != '\n');
+	}
+	return fpos;
+}
+
 struct buf *buf_create (char *path)
 {
 	struct buf *this;
@@ -32,6 +40,7 @@ struct buf *buf_create (char *path)
 	memset(this->txt, 0, BUFSIZ);
 	this->siz = BUFSIZ;
 	this->len = 0;
+	this->scroll = 0;
 
 	strncpy(this->path, path, sizeof(this->path));
 

@@ -6,10 +6,12 @@ struct buf {
 	char *txt;
 	size_t siz;
 	size_t len;
-	char path[240];
+	size_t scroll;
+	char path[256];
 };
 
-int buf_pos (struct buf *this, int x, int y);
+size_t buf_pos (struct buf *this, int x, int y);
+size_t buf_scroll_pos (struct buf *this);
 struct buf *buf_create (char *path);
 void buf_destroy (struct buf *this);
 

@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <string.h>
 #include "ascii.h"
 #include "buf.h"
@@ -24,7 +23,7 @@ static int args_read (int argc, char *argv[])
 static int editor_uibg_draw (void)
 {
 	term_move_topleft();
-	for (int y = 1; y < T.lines; y++) {
+	for (int y = 1; y < T.lines - 1; y++) {
 		printf("\x1b[K~");
 		if (y < T.lines - 1)
 			printf("\r\n");
@@ -40,10 +39,11 @@ static int editor_buf_draw (void)
 		return 1;
 	if (!b->txt)
 		return 2;
-	size_t fpos = 0;
+	size_t fpos = buf_scroll_pos(b);
 	term_move_topleft();
-	for (int i = 1; i < T.lines; i++) {
+	for (int i = 1; i < T.lines - 1; i++) {
 		printf("\x1b[K");
+		printf("%d\t", (int)b->scroll + i);
 		for (int j = 0; j < T.cols; j++) {
 			char byte;
 			if (fpos >= b->siz)

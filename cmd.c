@@ -112,6 +112,17 @@ static int cmd_process_insert (int append)
 	return 0;
 }
 
+static int cmd_process_scroll(int y)
+{
+	struct buf *b;
+	if (bufl_read(BufL, &b))
+		return 1;
+	int z = (int)b->scroll + y;
+	b->scroll = z >= 0 ? z : 0;
+	cmduf |= UPDATE_BUF;
+	return 0;
+}
+
 int cmd_process (void)
 {
 	switch (cmd[cmdri++]) {
@@ -120,6 +131,12 @@ int cmd_process (void)
 		break;
 	case 'm':
 		cmd_process_mv();
+		break;
+	case 'z':
+		cmd_process_scroll(T.lines - 1);
+		break;
+	case 'Z':
+		cmd_process_scroll(1 - T.lines);
 		break;
 	case 'a':
 		cmd_process_insert(1);

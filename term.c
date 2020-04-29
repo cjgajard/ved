@@ -53,7 +53,7 @@ ssize_t term_move_topleft (void)
 ssize_t term_move_cursor (void)
 {
 	char buf[32];
-	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", T.y + 1, T.x + 1);
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", T.y + 1, T.x + 1 + 8);
 	return write(STDOUT_FILENO, buf, strlen(buf));
 }
 
