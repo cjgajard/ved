@@ -6,7 +6,7 @@ struct buf {
 	char *txt;
 	size_t siz;
 	size_t len;
-	size_t scroll;
+	int scroll;
 	char path[256];
 };
 

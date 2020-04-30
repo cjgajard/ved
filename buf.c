@@ -2,6 +2,8 @@
 #include <string.h>
 #include "buf.h"
 
+struct bufl *BufL;
+
 size_t buf_pos (struct buf *this, int x, int y)
 {
 	size_t fpos = buf_scroll_pos(this);
@@ -23,7 +25,7 @@ size_t buf_pos (struct buf *this, int x, int y)
 size_t buf_scroll_pos (struct buf *this)
 {
 	size_t fpos = 0;
-	for (size_t i = 0; i < this->scroll; i++) {
+	for (int i = 0; i < this->scroll; i++) {
 		while (fpos < this->siz && this->txt[fpos++] != '\n');
 	}
 	return fpos;

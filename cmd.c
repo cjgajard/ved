@@ -1,4 +1,6 @@
+#include <ctype.h>
 #include <string.h>
+#include <stdlib.h>
 #include "ascii.h"
 #include "buf.h"
 #include "cmd.h"
@@ -112,19 +114,100 @@ static int cmd_process_insert (int append)
 	return 0;
 }
 
-static int cmd_process_scroll(int y)
+static int cmd_process_scroll (int a, int ma)
 {
 	struct buf *b;
 	if (bufl_read(BufL, &b))
 		return 1;
-	int z = (int)b->scroll + y;
+	int z = ma ? a : T.y;
 	b->scroll = z >= 0 ? z : 0;
 	cmduf |= UPDATE_BUF;
 	return 0;
 }
 
+int buf_lastline (struct buf *this)
+{
+	int addr = 0;
+	size_t fpos = 0;
+	char byte;
+	while (fpos < this->siz && (byte = this->txt[fpos++])) {
+		if (byte == '\n')
+			addr++;
+	}
+	return addr;
+}
+
+static int cmd_parseaddr (int *addr, int second) {
+	char byte;
+	int rel = 0;
+	int match = 0;
+	*addr = 0;
+	
+	while ((byte = cmd[cmdri++])) {
+		if (second && !match && byte == ',') {
+			continue;
+		}
+		if (byte == '$') {
+			struct buf *buf;
+			if (bufl_read(BufL, &buf))
+				return 2;
+			*addr = buf_lastline(buf);
+			match += 1;
+			continue;
+		}
+		if (byte == '.') {
+			*addr = T.y;
+			match += 1;
+			continue;
+		}
+		if (byte == '-' || byte == '+') {
+			*addr = T.y;
+			match += 1;
+			rel = 1;
+		}
+		if (rel || isdigit(byte)) {
+			char memo[16];
+			int i = 0;
+			do {
+				memo[i++] = byte;
+				byte = cmd[cmdri++];
+			}
+			while (isdigit(byte));
+			memo[i] = 0;
+
+			if (i == 1 && memo[0] == '+') {
+				*addr += 1;
+			}
+			else if (i == 1 && memo[0] == '-') {
+				*addr -= 1;
+			}
+			else if (rel) {
+				*addr += atoi(memo);
+			}
+			else {
+				int n = atoi(memo);
+				*addr += n >= 0 ? n - 1 : n;
+			}
+			match += 1;
+		}
+		cmdri--;
+		break;
+	}
+	return match;
+}
+
 int cmd_process (void)
 {
+	fprintf(stderr, "\n"); // DEV
+	int ra = 0; /* range A */
+	int ma = cmd_parseaddr(&ra, 0); /* match A */
+	fprintf(stderr, "ra=%d\n", ra); // DEV
+
+	// int rb = 0; /* range B */
+	// int mb = cmd_parseaddr(&rangeB, 0); /* match B */
+	// fprintf(stderr, "rb=%d\n", rb); // DEV
+	fprintf(stderr, "cmd=%s cmdri=%zu\n", cmd, cmdri); // DEV
+
 	switch (cmd[cmdri++]) {
 	case 'F':
 		cmd_process_fs();
@@ -133,10 +216,7 @@ int cmd_process (void)
 		cmd_process_mv();
 		break;
 	case 'z':
-		cmd_process_scroll(T.lines - 1);
-		break;
-	case 'Z':
-		cmd_process_scroll(1 - T.lines);
+		cmd_process_scroll(ra, ma);
 		break;
 	case 'a':
 		cmd_process_insert(1);
@@ -144,7 +224,28 @@ int cmd_process (void)
 	case 'i':
 		cmd_process_insert(0);
 		break;
+	case '\0':
+		{
+			struct buf *b;
+			if (bufl_read(BufL, &b))
+				break;
+			if (ra >= b->scroll && ra < b->scroll + T.lines) {
+				T.y = ra - b->scroll;
+				if (T.y < 0)
+					T.y = 0;
+			}
+			else {
+				b->scroll = ra - T.y;
+				if (b->scroll < 0) {
+					b->scroll = 0;
+					T.y = ra;
+				}
+				cmduf |= UPDATE_BUF;
+			}
+		}
+		break;
 	}
+
 	cmdri = 0;
 	cmduf |= UPDATE_CMD;
 	return 0;

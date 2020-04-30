@@ -7,7 +7,6 @@
 #define CTRL(x) ((x) & 0x1f)
 
 struct termcfg T;
-struct bufl *BufL;
 
 static int args_read (int argc, char *argv[])
 {
@@ -41,9 +40,9 @@ static int editor_buf_draw (void)
 		return 2;
 	size_t fpos = buf_scroll_pos(b);
 	term_move_topleft();
-	for (int i = 1; i < T.lines - 1; i++) {
+	for (int i = 0; i < T.lines - 2; i++) {
 		printf("\x1b[K");
-		printf("%d\t", (int)b->scroll + i);
+		printf("%d\t", b->scroll + i + 1);
 		for (int j = 0; j < T.cols; j++) {
 			char byte;
 			if (fpos >= b->siz)
@@ -88,8 +87,6 @@ int main (int argc, char *argv[])
 
 	if (termcfg_init())
 		return 1;
-	// if (!(Screen = screen_create()))
-	// 	return 2;
 main_loop:
 	if (cmduf & UPDATE_BUF)
 		editor_uibg_draw();
