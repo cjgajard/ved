@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <string.h>
 #include "ascii.h"
 #include "buf.h"
@@ -22,9 +23,10 @@ static int args_read (int argc, char *argv[])
 static int editor_uibg_draw (void)
 {
 	term_move_topleft();
-	for (int y = 1; y < T.lines - 1; y++) {
+	int bottom = T.lines - 1;
+	for (int y = 0; y < bottom; y++) {
 		printf("\x1b[K~");
-		if (y < T.lines - 1)
+		if (y < bottom - 1)
 			printf("\r\n");
 	}
 	term_commit();
@@ -40,7 +42,7 @@ static int editor_buf_draw (void)
 		return 2;
 	size_t fpos = buf_scroll_pos(b);
 	term_move_topleft();
-	for (int i = 0; i < T.lines - 2; i++) {
+	for (int i = 0; i < T.lines - 1; i++) {
 		printf("\x1b[K");
 		printf("%d\t", b->scroll + i + 1);
 		for (int j = 0; j < T.cols; j++) {
@@ -58,21 +60,28 @@ static int editor_buf_draw (void)
 	return 0;
 }
 
-static int editor_echo_draw (unsigned char c)
+static int editor_uifg_draw (void)
 {
+	printf("\x1b[%dH\x1b[K", T.lines - 1);
+	printf("%s", cmdmsg);
+	term_commit();
+	cmdmsg[0] = 0;
+	return 0;
+}
+
+static int editor_echo_draw (void)
+{
+	struct buf *b = NULL;
+	bufl_read(BufL, &b);
+
 	printf("\x1b[%dH\x1b[K", T.lines);
-	printf("(0x%02x)", c);
+	if (b)
+		printf("(%d,%d)", b->scroll + T.y + 1, T.x + 1);
+
 	printf(" ");
 	for (int i = 0, len = strlen(cmd); i < len; i++)
 		ascii_fprintc(stdout, cmd[i]);
 	term_commit();
-	return 0;
-}
-
-static int editor_uifg_draw (void)
-{
-	printf("\x1b[%dH\x1b[K", T.lines - 1);
-	bufl_fprint(BufL, stdout);
 	return 0;
 }
 
@@ -81,7 +90,7 @@ int main (int argc, char *argv[])
 	int error = 0;
 	unsigned char c = 0;
 
-	cmduf = UPDATE_BUF | UPDATE_UI;
+	cmduf = UPDATE_BUF | UPDATE_ECHO;
 
 	args_read(argc, argv);
 
@@ -92,10 +101,10 @@ main_loop:
 		editor_uibg_draw();
 	if (cmduf & UPDATE_BUF)
 		editor_buf_draw();
-	if (cmduf & UPDATE_UI)
+	if (cmduf & UPDATE_CMD)
 		editor_uifg_draw();
 	if (cmduf & UPDATE_ECHO)
-		editor_echo_draw(c);
+		editor_echo_draw();
 	if (cmduf & UPDATE_CMD)
 		cmd_reset();
 	cmduf = UPDATE_ECHO;

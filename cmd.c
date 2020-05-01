@@ -7,6 +7,7 @@
 #include "term.h"
 
 char cmd[256] = {0};
+char cmdmsg[BUFSIZ];
 size_t cmdri = 0;
 size_t cmdwi = 0;
 unsigned int cmduf = 0;
@@ -35,13 +36,16 @@ int cmd_update (char c)
 static int cmd_process_fs (void)
 {
 	struct buf *b;
-	cmduf |= UPDATE_BUF | UPDATE_UI;
+	cmduf |= UPDATE_BUF;
 
 	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
 		switch (cmd[cmdri++]) {
 		case 'e':
 			if ((b = buf_create(cmd + cmdri)))
 				bufl_push(&BufL, b);
+			break;
+		case 'f':
+			bufl_sprint(BufL, cmdmsg);
 			break;
 		case 'n':
 			bufl_enable(BufL);
@@ -61,28 +65,20 @@ static int cmd_process_mv (void)
 	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
 		switch (cmd[cmdri++]) {
 		case 'h':
-			if (T.x > 0) {
+			if (T.x > 0)
 				T.x--;
-				term_move_cursor();
-			}
 			break;
 		case 'j':
-			if (T.y < T.lines - 1) {
+			if (T.y < T.lines - 1)
 				T.y++;
-				term_move_cursor();
-			}
 			break;
 		case 'k':
-			if (T.y > 0) {
+			if (T.y > 0)
 				T.y--;
-				term_move_cursor();
-			}
 			break;
 		case 'l':
-			if (T.x < T.cols - 1) {
+			if (T.x < T.cols - 1)
 				T.x++;
-				term_move_cursor();
-			}
 			break;
 		}
 	}
@@ -137,16 +133,13 @@ int buf_lastline (struct buf *this)
 	return addr;
 }
 
-static int cmd_parseaddr (int *addr, int second) {
+static int cmd_parseaddr (int *addr) {
 	char byte;
 	int rel = 0;
 	int match = 0;
 	*addr = 0;
 	
 	while ((byte = cmd[cmdri++])) {
-		if (second && !match && byte == ',') {
-			continue;
-		}
 		if (byte == '$') {
 			struct buf *buf;
 			if (bufl_read(BufL, &buf))
@@ -198,15 +191,15 @@ static int cmd_parseaddr (int *addr, int second) {
 
 int cmd_process (void)
 {
-	fprintf(stderr, "\n"); // DEV
-	int ra = 0; /* range A */
-	int ma = cmd_parseaddr(&ra, 0); /* match A */
-	fprintf(stderr, "ra=%d\n", ra); // DEV
+	int ra = 0;
+	int ma = cmd_parseaddr(&ra);
+	// int rb = 0;
+	// int mb = 0;
 
-	// int rb = 0; /* range B */
-	// int mb = cmd_parseaddr(&rangeB, 0); /* match B */
-	// fprintf(stderr, "rb=%d\n", rb); // DEV
-	fprintf(stderr, "cmd=%s cmdri=%zu\n", cmd, cmdri); // DEV
+	// if (cmd[cmdri]) {
+	//	cmdri++;
+	//	mb = cmd_parseaddr(&rb);
+	// }
 
 	switch (cmd[cmdri++]) {
 	case 'F':
@@ -225,7 +218,7 @@ int cmd_process (void)
 		cmd_process_insert(0);
 		break;
 	case '\0':
-		{
+		if (ma) {
 			struct buf *b;
 			if (bufl_read(BufL, &b))
 				break;
@@ -242,6 +235,7 @@ int cmd_process (void)
 				}
 				cmduf |= UPDATE_BUF;
 			}
+			T.x = 0;
 		}
 		break;
 	}

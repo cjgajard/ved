@@ -1,6 +1,6 @@
 #ifndef CMD_h
 #define CMD_h 1
-#include <stddef.h>
+#include <stdio.h>
 
 enum cmd_uflags {
 	UPDATE_ECHO = 1 << 0,
@@ -11,6 +11,7 @@ enum cmd_uflags {
 };
 
 extern char cmd[256];
+extern char cmdmsg[BUFSIZ];
 extern size_t cmdwi; /* command write index */
 extern size_t cmdri; /* command read index */
 extern unsigned char cmdmo; /* command mode */

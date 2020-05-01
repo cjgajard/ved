@@ -4,6 +4,9 @@
 
 struct bufl *BufL;
 
+int bufl_active_color_on = 0;
+int bufl_active_color_off = 90;
+
 size_t buf_pos (struct buf *this, int x, int y)
 {
 	size_t fpos = buf_scroll_pos(this);
@@ -64,6 +67,11 @@ void buf_destroy (struct buf *this)
 	free(this);
 }
 
+static int bufl_isactive (struct bufl *this)
+{
+	return !this->skip && (!this->prev || this->prev->skip);
+}
+
 int bufl_close (struct bufl *this)
 {
 	while (!bufl_pull(&this));
@@ -96,31 +104,6 @@ int bufl_enable (struct bufl *this)
 		node = node->next;
 	}
 	return 1;
-}
-
-int bufl_fprint (struct bufl *this, FILE *f)
-{
-	struct bufl *node = this;
-	if (!node)
-		return 0;
-
-	while (node->next)
-		node = node->next;
-
-	int w = 0;
-	while (node) {
-		if (w)
-			fprintf(f, " ");
-		if (node->skip)
-			w += fprintf(f, "\x1b[90m");
-		w += fprintf(f, "%s", node->value.path);
-		if (node->skip)
-			w += fprintf(f, "\x1b[0m");
-		node = node->prev;
-	}
-	if (w)
-		w += fprintf(f, "\n");
-	return w;
 }
 
 int bufl_pull (struct bufl **this)
@@ -160,5 +143,33 @@ int bufl_read (struct bufl *this, struct buf **b)
 		}
 		node = node->next;
 	}
+	*b = NULL;
 	return 1;
+}
+
+int bufl_sprint (struct bufl *this, char *ptr)
+{
+	struct bufl *node = this;
+	if (!node)
+		return 0;
+
+	while (node->next)
+		node = node->next;
+
+	int w = 0;
+	while (node) {
+		if (w)
+			w += sprintf(ptr + w, " ");
+		int color = bufl_isactive(node) ?
+			bufl_active_color_on : bufl_active_color_off;
+		if (color)
+			w += sprintf(ptr + w, "\x1b[%dm", color);
+		w += sprintf(ptr + w, "%s", node->value.path);
+		if (color)
+			w += sprintf(ptr + w, "\x1b[0m");
+		node = node->prev;
+	}
+	if (w)
+		w += sprintf(ptr + w, "\n");
+	return w;
 }
