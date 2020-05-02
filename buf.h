@@ -10,6 +10,7 @@ struct buf {
 	char path[256];
 };
 
+int buf_lastline (struct buf *this);
 size_t buf_pos (struct buf *this, int x, int y);
 size_t buf_scroll_pos (struct buf *this);
 struct buf *buf_create (char *path);

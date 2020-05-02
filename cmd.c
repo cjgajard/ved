@@ -12,6 +12,23 @@ size_t cmdri = 0;
 size_t cmdwi = 0;
 unsigned int cmduf = 0;
 
+static int buf_scroll (struct buf *this, int addr)
+{
+	int last;
+	this->scroll = addr;
+
+	if (this->scroll < 0) {
+		this->scroll = 0;
+		return 0;
+	}
+
+	last = buf_lastline(this) - T.lines + 2;
+	if (this->scroll > last) {
+		this->scroll = last;
+	}
+	return 0;
+}
+
 int cmd_reset (void)
 {
 	memset(cmd, 0, sizeof(cmd));
@@ -85,7 +102,7 @@ static int cmd_process_mv (void)
 	return 0;
 }
 
-static int cmd_process_insert (int append)
+static int cmd_process_insert (int addr, int match, int append)
 {
 	struct buf *b;
 	if (bufl_read(BufL, &b))
@@ -93,44 +110,33 @@ static int cmd_process_insert (int append)
 
 	char *cmdstr = cmd + cmdri;
 	size_t cmdlen = strlen(cmdstr);
-	if (b->len + cmdlen + 1 >= b->siz) {
+	if (b->len + cmdlen + 2 >= b->siz) {
 		fprintf(stderr, "txt should be resized\n"); // FIXME
 		return 2;
 	}
 
-	int pos = buf_pos(b, T.x, T.y);
-	if (append)
-		pos++;
-	memmove(b->txt + pos + cmdlen, b->txt + pos, b->len - pos);
-	b->len += cmdlen;
-	b->txt[b->len + 1] = 0;
+	int x = T.x;
+	int y = (match ? addr : b->scroll + T.y) + append;
+	int pos = buf_pos(b, x, y);
+
+	memmove(b->txt + pos + cmdlen + 1, b->txt + pos, b->len - pos);
 	memcpy(b->txt + pos, cmdstr, cmdlen);
+	b->txt[pos + cmdlen] = '\n';
+	b->len += cmdlen + 1;
+	b->txt[b->len + 1] = 0;
 
 	cmduf |= UPDATE_BUF;
 	return 0;
 }
 
-static int cmd_process_scroll (int a, int ma)
+static int cmd_process_scroll (int back)
 {
 	struct buf *b;
 	if (bufl_read(BufL, &b))
 		return 1;
-	int z = ma ? a : T.y;
-	b->scroll = z >= 0 ? z : 0;
+	buf_scroll(b, b->scroll + (back ? -1 : 1) * (T.lines - 2));
 	cmduf |= UPDATE_BUF;
 	return 0;
-}
-
-int buf_lastline (struct buf *this)
-{
-	int addr = 0;
-	size_t fpos = 0;
-	char byte;
-	while (fpos < this->siz && (byte = this->txt[fpos++])) {
-		if (byte == '\n')
-			addr++;
-	}
-	return addr;
 }
 
 static int cmd_parseaddr (int *addr) {
@@ -143,7 +149,7 @@ static int cmd_parseaddr (int *addr) {
 		if (byte == '$') {
 			struct buf *buf;
 			if (bufl_read(BufL, &buf))
-				return 2;
+				return 0;
 			*addr = buf_lastline(buf);
 			match += 1;
 			continue;
@@ -154,7 +160,10 @@ static int cmd_parseaddr (int *addr) {
 			continue;
 		}
 		if (byte == '-' || byte == '+') {
-			*addr = T.y;
+			struct buf *buf;
+			if (bufl_read(BufL, &buf))
+				return 0;
+			*addr = buf->scroll + T.y;
 			match += 1;
 			rel = 1;
 		}
@@ -189,6 +198,22 @@ static int cmd_parseaddr (int *addr) {
 	return match;
 }
 
+int cmd_moveto (int addr, int match)
+{
+	if (match) {
+		struct buf *b;
+		if (bufl_read(BufL, &b))
+			return 1;
+		if (addr < b->scroll || addr >= b->scroll + T.lines - 2) {
+			buf_scroll(b, addr);
+			cmduf |= UPDATE_BUF;
+		}
+		T.x = 0;
+		T.y = addr - b->scroll;
+	}
+	return 0;
+}
+
 int cmd_process (void)
 {
 	int ra = 0;
@@ -196,7 +221,7 @@ int cmd_process (void)
 	// int rb = 0;
 	// int mb = 0;
 
-	// if (cmd[cmdri]) {
+	// if (cmd[cmdri] == ',') {
 	//	cmdri++;
 	//	mb = cmd_parseaddr(&rb);
 	// }
@@ -209,34 +234,21 @@ int cmd_process (void)
 		cmd_process_mv();
 		break;
 	case 'z':
-		cmd_process_scroll(ra, ma);
+		cmd_process_scroll(0);
+		break;
+	case 'Z':
+		cmd_process_scroll(1);
 		break;
 	case 'a':
-		cmd_process_insert(1);
+		cmd_process_insert(ra, ma, 1);
+		cmd_moveto(ra + 2, ma);
 		break;
 	case 'i':
-		cmd_process_insert(0);
+		cmd_process_insert(ra, ma, 0);
+		cmd_moveto(ra + 1, ma);
 		break;
 	case '\0':
-		if (ma) {
-			struct buf *b;
-			if (bufl_read(BufL, &b))
-				break;
-			if (ra >= b->scroll && ra < b->scroll + T.lines) {
-				T.y = ra - b->scroll;
-				if (T.y < 0)
-					T.y = 0;
-			}
-			else {
-				b->scroll = ra - T.y;
-				if (b->scroll < 0) {
-					b->scroll = 0;
-					T.y = ra;
-				}
-				cmduf |= UPDATE_BUF;
-			}
-			T.x = 0;
-		}
+		cmd_moveto(ra, ma);
 		break;
 	}
 

@@ -7,6 +7,18 @@ struct bufl *BufL;
 int bufl_active_color_on = 0;
 int bufl_active_color_off = 90;
 
+int buf_lastline (struct buf *this)
+{
+	int addr = 0;
+	size_t fpos = 0;
+	char byte;
+	while (fpos < this->siz && (byte = this->txt[fpos++])) {
+		if (byte == '\n')
+			addr++;
+	}
+	return addr;
+}
+
 size_t buf_pos (struct buf *this, int x, int y)
 {
 	size_t fpos = buf_scroll_pos(this);
