@@ -2,7 +2,8 @@
 #include <string.h>
 #include "buf.h"
 
-struct bufl *BufL;
+struct buf *Buf = NULL;
+struct bufl *BufL = NULL;
 
 int bufl_active_color_on = 0;
 int bufl_active_color_off = 90;
@@ -35,6 +36,16 @@ size_t buf_pos (struct buf *this, int x, int y)
 			i += 7; // FIXME
 	}
 	return fpos;
+}
+
+size_t buf_save (struct buf *this, char *path)
+{
+	char *fpath = path[0] ? path : this->path;
+	FILE *f;
+	if (!(f = fopen(fpath, "w"))) {
+		return 0;
+	}
+	return fwrite(this->txt, 1, this->len, f);
 }
 
 size_t buf_scroll_pos (struct buf *this)
@@ -145,20 +156,6 @@ int bufl_push (struct bufl **this, struct buf *b)
 	return 0;
 }
 
-int bufl_read (struct bufl *this, struct buf **b)
-{
-	struct bufl *node = this;
-	while (node) {
-		if (!node->skip) {
-			*b = &node->value;
-			return 0;
-		}
-		node = node->next;
-	}
-	*b = NULL;
-	return 1;
-}
-
 int bufl_sprint (struct bufl *this, char *ptr)
 {
 	struct bufl *node = this;
@@ -184,4 +181,16 @@ int bufl_sprint (struct bufl *this, char *ptr)
 	if (w)
 		w += sprintf(ptr + w, "\n");
 	return w;
+}
+
+struct buf *bufl_now (struct bufl *this)
+{
+	struct bufl *node = this;
+	while (node) {
+		if (!node->skip) {
+			return &node->value;
+		}
+		node = node->next;
+	}
+	return NULL;
 }

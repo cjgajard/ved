@@ -16,6 +16,7 @@ static int args_read (int argc, char *argv[])
 		if (!b)
 			continue;
 		bufl_push(&BufL, b);
+		Buf = b;
 	}
 	return 0;
 }
@@ -35,21 +36,20 @@ static int editor_uibg_draw (void)
 
 static int editor_buf_draw (void)
 {
-	struct buf *b;
-	if (bufl_read(BufL, &b))
+	if (!Buf)
 		return 1;
-	if (!b->txt)
+	if (!Buf->txt)
 		return 2;
-	size_t fpos = buf_scroll_pos(b);
+	size_t fpos = buf_scroll_pos(Buf);
 	term_move_topleft();
 	for (int i = 0; i < T.lines - 1; i++) {
 		printf("\x1b[K");
-		printf("%d\t", b->scroll + i + 1);
+		printf("%d\t", Buf->scroll + i + 1);
 		for (int j = 0; j < T.cols; j++) {
 			char byte;
-			if (fpos >= b->siz)
+			if (fpos >= Buf->siz)
 				return 0;
-			if (!(byte = b->txt[fpos++]))
+			if (!(byte = Buf->txt[fpos++]))
 				return 0;
 			if (byte == '\n')
 				break;
@@ -71,13 +71,8 @@ static int editor_uifg_draw (void)
 
 static int editor_echo_draw (void)
 {
-	struct buf *b = NULL;
-	bufl_read(BufL, &b);
-
 	printf("\x1b[%dH\x1b[K", T.lines);
-	if (b)
-		printf("(%d,%d)", b->scroll + T.y + 1, T.x + 1);
-
+	printf("(%d,%d)", (Buf ? Buf->scroll : 0) + T.y + 1, T.x + 1);
 	printf(" ");
 	for (int i = 0, len = strlen(cmd); i < len; i++)
 		ascii_fprintc(stdout, cmd[i]);

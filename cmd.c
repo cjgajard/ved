@@ -52,23 +52,37 @@ int cmd_update (char c)
 
 static int cmd_process_fs (void)
 {
-	struct buf *b;
 	cmduf |= UPDATE_BUF;
 
 	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
 		switch (cmd[cmdri++]) {
 		case 'e':
-			if ((b = buf_create(cmd + cmdri)))
+			{
+				struct buf *b;
+				if (!(b = buf_create(cmd + cmdri))) {
+					return 1;
+				}
 				bufl_push(&BufL, b);
-			break;
+				Buf = b;
+				break;
+			}
 		case 'f':
 			bufl_sprint(BufL, cmdmsg);
 			break;
 		case 'n':
 			bufl_enable(BufL);
+			Buf = bufl_now(BufL);
 			break;
 		case 'p':
 			bufl_disable(BufL);
+			Buf = bufl_now(BufL);
+			break;
+		case 'w':
+			if (!Buf) {
+				sprintf(cmdmsg, "No file");
+				break;
+			}
+			sprintf(cmdmsg, "%zu", buf_save(Buf, cmd + cmdri));
 			break;
 		default:
 			return 0;
@@ -86,12 +100,10 @@ static int cmd_process_mv (void)
 				T.x--;
 			break;
 		case 'j':
-			if (T.y < T.lines - 1)
-				T.y++;
+			term_set_y(T.y + 1);
 			break;
 		case 'k':
-			if (T.y > 0)
-				T.y--;
+			term_set_y(T.y - 1);
 			break;
 		case 'l':
 			if (T.x < T.cols - 1)
@@ -104,26 +116,26 @@ static int cmd_process_mv (void)
 
 static int cmd_process_insert (int addr, int match, int append)
 {
-	struct buf *b;
-	if (bufl_read(BufL, &b))
+	if (!Buf)
 		return 1;
-
 	char *cmdstr = cmd + cmdri;
 	size_t cmdlen = strlen(cmdstr);
-	if (b->len + cmdlen + 2 >= b->siz) {
+	if (Buf->len + cmdlen + 2 >= Buf->siz) {
 		fprintf(stderr, "txt should be resized\n"); // FIXME
 		return 2;
 	}
 
 	int x = T.x;
-	int y = (match ? addr : b->scroll + T.y) + append;
-	int pos = buf_pos(b, x, y);
+	int y = (match ? addr : Buf->scroll + T.y) + append;
+	int pos = buf_pos(Buf, x, y);
 
-	memmove(b->txt + pos + cmdlen + 1, b->txt + pos, b->len - pos);
-	memcpy(b->txt + pos, cmdstr, cmdlen);
-	b->txt[pos + cmdlen] = '\n';
-	b->len += cmdlen + 1;
-	b->txt[b->len + 1] = 0;
+	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
+	memcpy(Buf->txt + pos, cmdstr, cmdlen);
+	Buf->txt[pos + cmdlen] = '\n';
+	Buf->len += cmdlen + 1;
+	Buf->txt[Buf->len + 1] = 0;
+
+	term_set_y(y + 1 - append);
 
 	cmduf |= UPDATE_BUF;
 	return 0;
@@ -131,10 +143,9 @@ static int cmd_process_insert (int addr, int match, int append)
 
 static int cmd_process_scroll (int back)
 {
-	struct buf *b;
-	if (bufl_read(BufL, &b))
+	if (!Buf)
 		return 1;
-	buf_scroll(b, b->scroll + (back ? -1 : 1) * (T.lines - 2));
+	buf_scroll(Buf, Buf->scroll + (back ? -1 : 1) * (T.lines - 2));
 	cmduf |= UPDATE_BUF;
 	return 0;
 }
@@ -147,10 +158,9 @@ static int cmd_parseaddr (int *addr) {
 	
 	while ((byte = cmd[cmdri++])) {
 		if (byte == '$') {
-			struct buf *buf;
-			if (bufl_read(BufL, &buf))
+			if (!Buf)
 				return 0;
-			*addr = buf_lastline(buf);
+			*addr = buf_lastline(Buf);
 			match += 1;
 			continue;
 		}
@@ -160,10 +170,9 @@ static int cmd_parseaddr (int *addr) {
 			continue;
 		}
 		if (byte == '-' || byte == '+') {
-			struct buf *buf;
-			if (bufl_read(BufL, &buf))
+			if (!Buf)
 				return 0;
-			*addr = buf->scroll + T.y;
+			*addr = Buf->scroll + T.y;
 			match += 1;
 			rel = 1;
 		}
@@ -201,15 +210,14 @@ static int cmd_parseaddr (int *addr) {
 int cmd_moveto (int addr, int match)
 {
 	if (match) {
-		struct buf *b;
-		if (bufl_read(BufL, &b))
+		if (!Buf)
 			return 1;
-		if (addr < b->scroll || addr >= b->scroll + T.lines - 2) {
-			buf_scroll(b, addr);
+		if (addr < Buf->scroll || addr >= Buf->scroll + T.lines - 2) {
+			buf_scroll(Buf, addr);
 			cmduf |= UPDATE_BUF;
 		}
 		T.x = 0;
-		T.y = addr - b->scroll;
+		term_set_y(addr - Buf->scroll);
 	}
 	return 0;
 }

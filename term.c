@@ -34,27 +34,22 @@ static int tcattr_raw (void)
 	return 0;
 }
 
-ssize_t term_commit (void)
+int term_commit (void)
 {
 	return fflush(stdout);
 }
 
-ssize_t term_erase_display (void)
-{
-	return write(STDOUT_FILENO, "\x1b[2J", 4);
-}
-
-ssize_t term_move_topleft (void)
-{
-	// return write(STDOUT_FILENO, "\x1b[H", 3);
-	return printf("\x1b[H");
-}
-
-ssize_t term_move_cursor (void)
+int term_move_cursor (void)
 {
 	char buf[32];
 	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", T.y + 1, T.x + 1 + 8);
 	return write(STDOUT_FILENO, buf, strlen(buf));
+}
+
+int term_move_topleft (void)
+{
+	// return write(STDOUT_FILENO, "\x1b[H", 3);
+	return printf("\x1b[H");
 }
 
 static int term_get_cursor (int *row, int *col)
@@ -74,12 +69,22 @@ static int term_get_cursor (int *row, int *col)
 	return 0;
 }
 
-ssize_t term_read (unsigned char *c)
+int term_read (unsigned char *c)
 {
 	if (read(STDIN_FILENO, c, 1) == -1) {
 		perror("read");
 		return 1;
 	}
+	return 0;
+}
+
+int term_set_y (int y)
+{
+	if (y < 0)
+		y = 0;
+	if (y > T.lines - 3)
+		y = T.lines - 3;
+	T.y = y;
 	return 0;
 }
 
