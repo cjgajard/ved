@@ -50,145 +50,12 @@ int cmd_update (char c)
 	return 0;
 }
 
-static int cmd_moveto (int addr, int match)
-{
-	if (match) {
-		if (!Buf)
-			return 1;
-		if (addr < Buf->scroll || addr >= Buf->scroll + T.lines) {
-			buf_scroll(Buf, addr);
-			cmduf |= UPDATE_BUF;
-		}
-		term_set_x(0);
-		term_set_y(addr - Buf->scroll);
-	}
-	return 0;
-}
-
-static int cmd_process_fs (void)
-{
-	cmduf |= UPDATE_BUF;
-
-	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
-		switch (cmd[cmdri++]) {
-		case 'e':
-			{
-				struct buf *b;
-				if (!(b = buf_create(cmd + cmdri))) {
-					return 1;
-				}
-				bufl_push(&BufL, b);
-				Buf = b;
-			}
-			break;
-		case 'w':
-			if (!Buf) {
-				sprintf(cmdmsg, "No file");
-				break;
-			}
-			sprintf(cmdmsg, "%zu", buf_save(Buf, cmd + cmdri));
-			break;
-		default:
-			return 0;
-		}
-	}
-	return 0;
-}
-
-static int cmd_process_buf (void)
-{
-	cmduf |= UPDATE_BUF;
-
-	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
-		switch (cmd[cmdri++]) {
-		case 'f':
-			bufl_sprint(BufL, cmdmsg);
-			break;
-		case 'n':
-			bufl_enable(BufL);
-			Buf = bufl_now(BufL);
-			break;
-		case 'p':
-			bufl_disable(BufL);
-			Buf = bufl_now(BufL);
-			break;
-		default:
-			cmdri--;
-			return 0;
-		}
-	}
-	return 0;
-}
-
-static int cmd_process_mv (void)
-{
-	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
-		switch (cmd[cmdri++]) {
-		case 'h':
-			term_set_x(T.x - 1);
-			break;
-		case 'j':
-			if (T.y < T.lines - 1)
-				term_set_y(T.y + 1);
-			else
-				buf_scroll(Buf, Buf->scroll + 1);
-			break;
-		case 'k':
-			if (!T.y)
-				buf_scroll(Buf, Buf->scroll - 1);
-			else
-				term_set_y(T.y - 1);
-			break;
-		case 'l':
-			term_set_x(T.x + 1);
-			break;
-		}
-	}
-	return 0;
-}
-
-static int cmd_process_insert (int addr, int match, int append)
-{
-	if (!Buf)
-		return 1;
-
-	char *cmdstr = cmd + cmdri;
-	size_t cmdlen = strlen(cmdstr);
-	
-	if (Buf->len + cmdlen + 2 >= Buf->siz) {
-		fprintf(stderr, "txt should be resized\n"); // FIXME
-		return 2;
-	}
-
-	int x = T.x;
-	int y = (match ? addr : Buf->scroll + T.y) + append;
-	int pos = buf_pos(Buf, x, y);
-
-	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
-	memcpy(Buf->txt + pos, cmdstr, cmdlen);
-	Buf->txt[pos + cmdlen] = '\n';
-	Buf->len += cmdlen + 1;
-	Buf->txt[Buf->len + 1] = 0;
-
-	cmduf |= UPDATE_BUF;
-	return 0;
-}
-
-static int cmd_process_scroll (int back)
-{
-	if (!Buf)
-		return 1;
-	buf_scroll(Buf, Buf->scroll + (back ? -1 : 1) * T.lines);
-	cmduf |= UPDATE_BUF;
-	return 0;
-}
-
 static int cmd_parseaddr (int *addr) {
 	char byte;
 	int rel = 0;
 	int match = 0;
 	*addr = 0;
-	
+
 	while ((byte = cmd[cmdri++])) {
 		if (byte == '$') {
 			if (!Buf)
@@ -198,14 +65,15 @@ static int cmd_parseaddr (int *addr) {
 			continue;
 		}
 		if (byte == '.') {
-			*addr = T.y;
+			*addr = Buf->scroll + T.y;
 			match += 1;
 			continue;
 		}
 		if (byte == '-' || byte == '+') {
 			if (!Buf)
 				return 0;
-			*addr = Buf->scroll + T.y;
+			if (!match)
+				*addr = Buf->scroll + T.y;
 			match += 1;
 			rel = 1;
 		}
@@ -240,17 +108,185 @@ static int cmd_parseaddr (int *addr) {
 	return match;
 }
 
+static int cmd_parsecomma (int *addr)
+{
+	int match = 0;
+
+	if (cmd[cmdri] == ',') {
+		cmdri++;
+		match = cmd_parseaddr(addr);
+	}
+
+	return match;
+}
+
+static int cmd_moveto (int aa)
+{
+	if (!Buf)
+		return 1;
+	if (aa < Buf->scroll || aa >= Buf->scroll + T.lines) {
+		buf_scroll(Buf, aa);
+		cmduf |= UPDATE_BUF;
+	}
+	term_set_x(0);
+	term_set_y(aa - Buf->scroll);
+	return 0;
+}
+
+static int cmd_process_buf (void)
+{
+	cmduf |= UPDATE_BUF;
+
+	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
+		switch (cmd[cmdri++]) {
+		case 'f':
+			bufl_sprint(BufL, cmdmsg);
+			break;
+		case 'n':
+			bufl_enable(BufL);
+			Buf = bufl_now(BufL);
+			break;
+		case 'p':
+			bufl_disable(BufL);
+			Buf = bufl_now(BufL);
+			break;
+		default:
+			cmdri--;
+			return 0;
+		}
+	}
+	return 0;
+}
+
+static int cmd_process_cut (int ma, int aa, int mb, int ab)
+{
+	if (!Buf)
+		return 1;
+
+	int ya = ma ? aa : Buf->scroll + T.y;
+	int yb = mb ? ab : ya + 1;
+
+	if (ya >= yb) {
+		memcpy(cmdmsg, "?", 2);
+		return 1;
+	}
+
+	int start = buf_pos(Buf, 0, ya);
+	int end = buf_pos(Buf, 0, yb);
+	int len = end - start;
+
+	// TODO: memcpy(clipboard, Buf->txt + start, len - 1 /* newline */);
+	memmove(Buf->txt + start, Buf->txt + end, Buf->len - end);
+	Buf->len -= len;
+	Buf->txt[Buf->len + 1] = 0;
+
+	cmd_moveto(ya);
+
+	return 0;
+}
+
+static int cmd_process_fs (void)
+{
+	cmduf |= UPDATE_BUF;
+
+	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
+		switch (cmd[cmdri++]) {
+		case 'e':
+			{
+				struct buf *b;
+				if (!(b = buf_create(cmd + cmdri))) {
+					return 1;
+				}
+				bufl_push(&BufL, b);
+				Buf = b;
+			}
+			break;
+		case 'w':
+			if (!Buf) {
+				sprintf(cmdmsg, "No file");
+				break;
+			}
+			sprintf(cmdmsg, "%zu", buf_save(Buf, cmd + cmdri));
+			break;
+		default:
+			return 0;
+		}
+	}
+	return 0;
+}
+
+static int cmd_process_insert (int ma, int aa, int append)
+{
+	if (!Buf)
+		return 1;
+
+	char *cmdstr = cmd + cmdri;
+	size_t cmdlen = strlen(cmdstr);
+	
+	if (Buf->len + cmdlen + 2 >= Buf->siz) {
+		fprintf(stderr, "txt should be resized\n"); // FIXME
+		return 2;
+	}
+
+	int x = T.x;
+	int y = (ma ? aa : Buf->scroll + T.y) + append;
+	int pos = buf_pos(Buf, x, y);
+
+	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
+	memcpy(Buf->txt + pos, cmdstr, cmdlen);
+	Buf->txt[pos + cmdlen] = '\n';
+	Buf->len += cmdlen + 1;
+	Buf->txt[Buf->len + 1] = 0;
+
+	cmd_moveto(y);
+
+	cmduf |= UPDATE_BUF;
+	return 0;
+}
+
+static int cmd_process_mv (void)
+{
+	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
+		switch (cmd[cmdri++]) {
+		case 'h':
+			term_set_x(T.x - 1);
+			break;
+		case 'j':
+			if (T.y < T.lines - 1)
+				term_set_y(T.y + 1);
+			else
+				buf_scroll(Buf, Buf->scroll + 1);
+			break;
+		case 'k':
+			if (!T.y)
+				buf_scroll(Buf, Buf->scroll - 1);
+			else
+				term_set_y(T.y - 1);
+			break;
+		case 'l':
+			term_set_x(T.x + 1);
+			break;
+		}
+	}
+	return 0;
+}
+
+static int cmd_process_scroll (int back)
+{
+	if (!Buf)
+		return 1;
+	buf_scroll(Buf, Buf->scroll + (back ? -1 : 1) * T.lines);
+	cmduf |= UPDATE_BUF;
+	return 0;
+}
+
 int cmd_process (void)
 {
-	int ra = 0;
-	int ma = cmd_parseaddr(&ra);
-	// int rb = 0;
-	// int mb = 0;
+	int aa = 0;
+	int ma = cmd_parseaddr(&aa);
 
-	// if (cmd[cmdri] == ',') {
-	//	cmdri++;
-	//	mb = cmd_parseaddr(&rb);
-	// }
+	int ab = 0;
+	int mb = cmd_parsecomma(&ab);
 
 	switch (cmd[cmdri++]) {
 	case 'F':
@@ -263,12 +299,13 @@ int cmd_process (void)
 		cmd_process_scroll(1);
 		break;
 	case 'a':
-		cmd_process_insert(ra, ma, 1);
-		cmd_moveto(ra + 1, ma);
+		cmd_process_insert(ma, aa, 1);
 		break;
 	case 'i':
-		cmd_process_insert(ra, ma, 0);
-		cmd_moveto(ra, ma);
+		cmd_process_insert(ma, aa, 0);
+		break;
+	case 'd':
+		cmd_process_cut(ma, aa, mb, ab);
 		break;
 	case 'm':
 		cmd_process_mv();
@@ -277,7 +314,8 @@ int cmd_process (void)
 		cmd_process_scroll(0);
 		break;
 	case '\0':
-		cmd_moveto(ra, ma);
+		if (ma)
+			cmd_moveto(aa);
 		break;
 	}
 
