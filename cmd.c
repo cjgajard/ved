@@ -12,7 +12,7 @@ size_t cmdri = 0;
 size_t cmdwi = 0;
 unsigned int cmduf = 0;
 
-static int buf_scroll (struct buf *this, int addr)
+int buf_scroll (struct buf *this, int addr)
 {
 	int last;
 	this->scroll = addr;
@@ -128,10 +128,16 @@ static int cmd_process_mv (void)
 			term_set_x(T.x - 1);
 			break;
 		case 'j':
-			term_set_y(T.y + 1);
+			if (T.y < T.lines - 1)
+				term_set_y(T.y + 1);
+			else
+				buf_scroll(Buf, Buf->scroll + 1);
 			break;
 		case 'k':
-			term_set_y(T.y - 1);
+			if (!T.y)
+				buf_scroll(Buf, Buf->scroll - 1);
+			else
+				term_set_y(T.y - 1);
 			break;
 		case 'l':
 			term_set_x(T.x + 1);
