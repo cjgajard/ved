@@ -14,6 +14,8 @@ unsigned int cmduf = 0;
 
 int buf_scroll (struct buf *this, int addr)
 {
+	if (!this)
+		return 1;
 	int last;
 	this->scroll = addr;
 
@@ -120,16 +122,22 @@ static int cmd_parsecomma (int *addr)
 	return match;
 }
 
-static int cmd_moveto (int aa)
+static int cmd_moveto (int y)
 {
 	if (!Buf)
 		return 1;
-	if (aa < Buf->scroll || aa >= Buf->scroll + T.lines) {
-		buf_scroll(Buf, aa);
-		cmduf |= UPDATE_BUF;
+
+	if (y < Buf->scroll) {
+		buf_scroll(Buf, y);
+		term_set_y(0);
 	}
-	term_set_x(0);
-	term_set_y(aa - Buf->scroll);
+	else if (y <= Buf->scroll + T.lines) {
+		term_set_y(y - Buf->scroll);
+	}
+	else {
+		buf_scroll(Buf, y - T.lines);
+		term_set_y(T.lines);
+	}
 	return 0;
 }
 
@@ -181,7 +189,6 @@ static int cmd_process_cut (int ma, int aa, int mb, int ab)
 	Buf->txt[Buf->len + 1] = 0;
 
 	cmd_moveto(ya);
-
 	return 0;
 }
 
@@ -244,6 +251,16 @@ static int cmd_process_insert (int ma, int aa, int append)
 	return 0;
 }
 
+static int cmd_process_jump (int ma, int aa)
+{
+	if (!ma)
+		return 1;
+	buf_scroll(Buf, aa - T.lines / 2);
+	term_set_x(0);
+	term_set_y(aa - Buf->scroll);
+	return 0;
+}
+
 static int cmd_process_mv (void)
 {
 	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
@@ -271,11 +288,18 @@ static int cmd_process_mv (void)
 	return 0;
 }
 
-static int cmd_process_scroll (int back)
+static int cmd_process_scroll (int ma, int aa, int back)
 {
 	if (!Buf)
 		return 1;
-	buf_scroll(Buf, Buf->scroll + (back ? -1 : 1) * T.lines);
+	if (ma) {
+		buf_scroll(Buf, aa);
+		cmd_moveto(aa);
+	}
+	else {
+		int y = (back ? -1 : 1) * T.lines;
+		buf_scroll(Buf, Buf->scroll + y);
+	}
 	cmduf |= UPDATE_BUF;
 	return 0;
 }
@@ -296,7 +320,7 @@ int cmd_process (void)
 		cmd_process_buf();
 		break;
 	case 'Z':
-		cmd_process_scroll(1);
+		cmd_process_scroll(ma, aa, 1);
 		break;
 	case 'a':
 		cmd_process_insert(ma, aa, 1);
@@ -311,11 +335,10 @@ int cmd_process (void)
 		cmd_process_mv();
 		break;
 	case 'z':
-		cmd_process_scroll(0);
+		cmd_process_scroll(ma, aa, 0);
 		break;
 	case '\0':
-		if (ma)
-			cmd_moveto(aa);
+		cmd_process_jump(ma, aa);
 		break;
 	}
 
