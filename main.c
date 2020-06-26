@@ -9,6 +9,9 @@
 
 struct termcfg T;
 
+static char *range_color = "44";
+static char *cursor_color = "105";
+
 static int args_read (int argc, char *argv[])
 {
 	for (int i = 1; i < argc; i++) {
@@ -24,10 +27,9 @@ static int args_read (int argc, char *argv[])
 static int editor_uibg_draw (void)
 {
 	term_move_topleft();
-	int bottom = T.lines - 1;
-	for (int y = 0; y < bottom; y++) {
+	for (int y = 0; y < T.lines; y++) {
 		printf("\x1b[K~");
-		if (y < bottom - 1)
+		if (y < T.lines - 1)
 			printf("\r\n");
 	}
 	term_commit();
@@ -41,19 +43,42 @@ static int editor_buf_draw (void)
 	if (!Buf->txt)
 		return 2;
 	size_t fpos = buf_scroll_pos(Buf);
+
 	term_move_topleft();
-	for (int i = 0; i < T.lines - 1; i++) {
+	for (int y = 0; y < T.lines; y++) {
 		printf("\x1b[K");
-		printf("%d\t", Buf->scroll + i + 1);
-		for (int j = 0; j < T.cols; j++) {
-			char byte;
-			if (fpos >= Buf->siz)
-				return 0;
-			if (!(byte = Buf->txt[fpos++]))
-				return 0;
-			if (byte == '\n')
-				break;
+		int is_range = y == T.y;
+		if (is_range)
+			printf("\x1b[%sm", range_color);
+		printf("%d\t", Buf->scroll + y + 1);
+		if (is_range)
+			printf("\x1b[0m");
+		int nextline = 0;
+		for (int x = 0; x < T.cols; x++) {
+			char byte = ' ';
+			int is_cursor = y == T.y && x == T.x;
+			if (!nextline) {
+				if (fpos >= Buf->siz)
+					return 0;
+				if (!(byte = Buf->txt[fpos++]))
+					return 0;
+				switch (byte) {
+				case EOF:
+					return 0;
+				case '\n':
+					nextline = 1;
+					byte = ' ';
+					break;
+				case '\t':
+					x += 7;
+					break;
+				}
+			}
+			if (is_cursor)
+				printf("\x1b[%sm", cursor_color);
 			printf("%c", byte);
+			if (is_cursor)
+				printf("\x1b[0m");
 		}
 		printf("\r\n");
 	}
@@ -62,7 +87,7 @@ static int editor_buf_draw (void)
 
 static int editor_uifg_draw (void)
 {
-	printf("\x1b[%dH\x1b[K", T.lines - 1);
+	printf("\x1b[%dH\x1b[K", T.lines + 1);
 	printf("%s", cmdmsg);
 	term_commit();
 	cmdmsg[0] = 0;
@@ -71,7 +96,7 @@ static int editor_uifg_draw (void)
 
 static int editor_echo_draw (void)
 {
-	printf("\x1b[%dH\x1b[K", T.lines);
+	printf("\x1b[%dH\x1b[K", T.lines + 2);
 	printf("(%d,%d)", (Buf ? Buf->scroll : 0) + T.y + 1, T.x + 1);
 	printf(" ");
 	for (int i = 0, len = strlen(cmd); i < len; i++)
@@ -102,7 +127,7 @@ main_loop:
 		editor_echo_draw();
 	if (cmduf & UPDATE_CMD)
 		cmd_reset();
-	cmduf = UPDATE_ECHO;
+	cmduf = UPDATE_ECHO | UPDATE_BUF;
 
 	term_move_cursor();
 

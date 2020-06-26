@@ -18,6 +18,6 @@ int term_commit (void);
 int term_move_cursor (void);
 int term_move_topleft (void);
 int term_read (unsigned char *c);
+int term_set_x (int x);
 int term_set_y (int y);
-
 #endif

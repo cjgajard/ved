@@ -78,12 +78,22 @@ int term_read (unsigned char *c)
 	return 0;
 }
 
+int term_set_x (int x)
+{
+	if (x < 0)
+		x = 0;
+	if (x > T.cols - 1)
+		x = T.cols - 1;
+	T.x = x;
+	return 0;
+}
+
 int term_set_y (int y)
 {
 	if (y < 0)
 		y = 0;
-	if (y > T.lines - 3)
-		y = T.lines - 3;
+	if (y > T.lines - 1)
+		y = T.lines - 1;
 	T.y = y;
 	return 0;
 }
@@ -112,7 +122,10 @@ int termcfg_init (void)
 	write(STDOUT_FILENO, "\x1b[999B\x1b[999C", 12);
 	term_get_cursor(&T.lines, &T.cols);
 
-	// printf("\x1b[?25l");
+	T.lines -= 2;
+	T.cols -= 8;
+
+	printf("\x1b[?25l");
 	printf("\x1b[%dS", T.init_row);
 	term_commit();
 	return 0;
@@ -121,10 +134,10 @@ int termcfg_init (void)
 int termcfg_close (void)
 {
 	term_move_topleft();
-	for (int y = 0; y < T.lines; y++) {
+	for (int y = 0; y < T.lines + 2; y++) {
 		printf("\x1b[K\x1b[B");
 	}
-	// printf("\x1b[?34h\x1b[?25h");
+	printf("\x1b[?34h\x1b[?25h");
 	term_move_topleft();
 	term_commit();
 

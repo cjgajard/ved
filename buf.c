@@ -13,7 +13,7 @@ int buf_lastline (struct buf *this)
 	int addr = 0;
 	size_t fpos = 0;
 	char byte;
-	while (fpos < this->siz && (byte = this->txt[fpos++])) {
+	while (fpos < this->len && (byte = this->txt[fpos++])) {
 		if (byte == '\n')
 			addr++;
 	}
@@ -22,9 +22,9 @@ int buf_lastline (struct buf *this)
 
 size_t buf_pos (struct buf *this, int x, int y)
 {
-	size_t fpos = buf_scroll_pos(this);
+	size_t fpos = 0;
 	for (int i = 0; i < y; i++) {
-		while (fpos < this->siz && this->txt[fpos++] != '\n');
+		while (fpos < this->len && this->txt[fpos++] != '\n');
 	}
 	for (int i = 0; i < x; i++) {
 		if (fpos >= this->siz)
