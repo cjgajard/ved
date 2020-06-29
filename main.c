@@ -47,16 +47,19 @@ static int editor_buf_draw (void)
 	term_move_topleft();
 	for (int y = 0; y < T.lines; y++) {
 		printf("\x1b[K");
+
 		int is_range = y == T.y;
 		if (is_range)
 			printf("\x1b[%sm", range_color);
 		printf("%d\t", Buf->scroll + y + 1);
 		if (is_range)
 			printf("\x1b[0m");
+
 		int nextline = 0;
 		for (int x = 0; x < T.cols; x++) {
 			char byte = ' ';
 			int is_cursor = y == T.y && x == T.x;
+			int is_tab = 0;
 			if (!nextline) {
 				if (fpos >= Buf->siz)
 					return 0;
@@ -66,10 +69,12 @@ static int editor_buf_draw (void)
 				case EOF:
 					return 0;
 				case '\n':
-					nextline = 1;
 					byte = ' ';
+					nextline = 1;
 					break;
 				case '\t':
+					byte = ' ';
+					is_tab = 1;
 					x += 7;
 					break;
 				}
@@ -79,7 +84,11 @@ static int editor_buf_draw (void)
 			printf("%c", byte);
 			if (is_cursor)
 				printf("\x1b[0m");
+			if (is_tab)
+				printf("%-7c", ' ');
+
 		}
+
 		printf("\r\n");
 	}
 	return 0;
