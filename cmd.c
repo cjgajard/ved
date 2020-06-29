@@ -172,7 +172,7 @@ static int cmd_process_cut (int ma, int aa, int mb, int ab)
 		return 1;
 
 	int ya = ma ? aa : Buf->scroll + T.y;
-	int yb = mb ? ab : ya + 1;
+	int yb = (mb ? ab : ya) + 1;
 
 	if (ya >= yb) {
 		memcpy(cmdmsg, "?", 2);
