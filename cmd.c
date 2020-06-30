@@ -268,9 +268,6 @@ static int cmd_process_mv (void)
 {
 	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
 		switch (cmd[cmdri++]) {
-		case 'h':
-			term_set_x(T.x - 1);
-			break;
 		case 'j':
 			if (T.y < T.lines - 1)
 				term_set_y(T.y + 1);
@@ -282,9 +279,6 @@ static int cmd_process_mv (void)
 				buf_scroll(Buf, Buf->scroll - 1);
 			else
 				term_set_y(T.y - 1);
-			break;
-		case 'l':
-			term_set_x(T.x + 1);
 			break;
 		}
 	}
