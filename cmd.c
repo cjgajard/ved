@@ -12,6 +12,8 @@ size_t cmdri = 0;
 size_t cmdwi = 0;
 unsigned int cmduf = 0;
 
+char cmdclip[BUFSIZ];
+
 int buf_scroll (struct buf *this, int addr)
 {
 	if (!this)
@@ -183,7 +185,8 @@ static int cmd_process_cut (int ma, int aa, int mb, int ab)
 	int end = buf_pos(Buf, 0, yb);
 	int len = end - start;
 
-	// TODO: memcpy(clipboard, Buf->txt + start, len - 1 /* newline */);
+	memcpy(cmdclip, Buf->txt + start, len);
+	cmdclip[len + 1] = 0;
 	memmove(Buf->txt + start, Buf->txt + end, Buf->len - end);
 	Buf->len -= len;
 	Buf->txt[Buf->len + 1] = 0;
@@ -288,6 +291,37 @@ static int cmd_process_mv (void)
 	return 0;
 }
 
+static int cmd_process_paste (int ma, int aa)
+{
+	if (!Buf)
+		return 1;
+
+	size_t len = strlen(cmdclip);
+
+	if (Buf->len + len + 1 >= Buf->siz) {
+		fprintf(stderr, "txt should be resized\n"); // FIXME
+		return 2;
+	}
+
+	int x = 0;
+	int y = (ma ? aa : Buf->scroll + T.y) + 1;
+	int pos = buf_pos(Buf, x, y);
+
+	memmove(Buf->txt + pos + len, Buf->txt + pos, Buf->len - pos);
+	memcpy(Buf->txt + pos, cmdclip, len);
+	Buf->len += len;
+	Buf->txt[Buf->len + 1] = 0;
+
+	char *str;
+	int count = 0;
+	for (str = cmdclip; *str; str++)
+		count += ((*str) == '\n');
+	cmd_moveto(y + count);
+
+	cmduf |= UPDATE_BUF;
+	return 0;
+}
+
 static int cmd_process_scroll (int ma, int aa, int back)
 {
 	if (!Buf)
@@ -331,8 +365,11 @@ int cmd_process (void)
 	case 'd':
 		cmd_process_cut(ma, aa, mb, ab);
 		break;
-	case 'm':
+	case 'p':
 		cmd_process_mv();
+		break;
+	case 'x':
+		cmd_process_paste(ma, aa);
 		break;
 	case 'z':
 		cmd_process_scroll(ma, aa, 0);
