@@ -25,6 +25,11 @@ static int cmd_do_scroll (int ma, int aa, int back);
 static int cmd_do_transfer (int ma, int aa, int mb, int ab);
 static int cmd_do_yank (int ma, int aa, int mb, int ab);
 
+static int currentaddr (void)
+{
+	return (!Buf ? 0 : Buf->scroll) + T.y;
+}
+
 static int parseaddr (int *addr) {
 	char byte;
 	int rel = 0;
@@ -40,7 +45,7 @@ static int parseaddr (int *addr) {
 			continue;
 		}
 		if (byte == '.') {
-			*addr = Buf->scroll + T.y;
+			*addr = currentaddr();
 			match += 1;
 			continue;
 		}
@@ -48,7 +53,7 @@ static int parseaddr (int *addr) {
 			if (!Buf)
 				return 0;
 			if (!match)
-				*addr = Buf->scroll + T.y;
+				*addr = currentaddr();
 			match += 1;
 			rel = 1;
 		}
@@ -83,23 +88,31 @@ static int parseaddr (int *addr) {
 	return match;
 }
 
-static int parsecomma (int *addr)
+static int parsecomma (int *aa)
 {
-	int match = 0;
-
-	if (cmdline[clri] == ',') {
+	switch (cmdline[clri]) {
+	case ',':
 		clri++;
-		match = parseaddr(addr);
+		if (!aa)
+			return 0;
+		*aa = 0; /* address 0 is line 1 */
+		return 1;
+	case ';':
+		clri++;
+		if (!aa)
+			return 0;
+		*aa = currentaddr();
+		return 1;
+	default:
+		return 0;
 	}
-
-	return match;
 }
 
 static int moveto (int y)
 {
-	if (!Buf)
+	if (!Buf) {
 		return 1;
-
+	}
 	if (y < Buf->scroll) {
 		buf_scroll(Buf, y);
 		term_set_y(0);
@@ -114,15 +127,13 @@ static int moveto (int y)
 	return 0;
 }
 
-// static int buf_clip (int delete, int start, int end)
 static int cliptext (int delete, int ma, int aa, int mb, int ab)
 {
 	if (!Buf)
 		return 1;
 
-	int ya = ma ? aa : Buf->scroll + T.y;
+	int ya = ma ? aa : currentaddr();
 	int yb = (mb ? ab : ya) + 1;
-
 	if (ya >= yb)
 		return 2;
 
@@ -137,6 +148,7 @@ static int cliptext (int delete, int ma, int aa, int mb, int ab)
 		Buf->len -= len;
 		Buf->txt[Buf->len + 1] = 0;
 	}
+
 	moveto(ya);
 	return 0;
 }
@@ -232,7 +244,7 @@ static int cmd_do_insert (int ma, int aa, int append)
 	}
 
 	int x = T.x;
-	int y = (ma ? aa : Buf->scroll + T.y) + append;
+	int y = (ma ? aa : currentaddr()) + append;
 	int pos = buf_pos(Buf, x, y);
 
 	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
@@ -304,7 +316,7 @@ static int cmd_do_paste (int ma, int aa)
 	}
 
 	int x = 0;
-	int y = (ma ? aa : Buf->scroll + T.y) + 1;
+	int y = (ma ? aa : currentaddr()) + 1;
 	int pos = buf_pos(Buf, x, y);
 
 	memmove(Buf->txt + pos + len, Buf->txt + pos, Buf->len - pos);
@@ -381,9 +393,9 @@ int cmdline_process (void)
 {
 	int aa = 0;
 	int ma = parseaddr(&aa);
-
+	ma += parsecomma(ma ? NULL : &aa);
 	int ab = 0;
-	int mb = parsecomma(&ab);
+	int mb = parseaddr(&ab);
 
 	switch (cmdline[clri++]) {
 	case 'F':
