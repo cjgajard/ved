@@ -23,48 +23,10 @@ static int cmd_process_move (int ma, int aa, int mb, int ab);
 static int cmd_process_movement (void);
 static int cmd_process_paste (int ma, int aa);
 static int cmd_process_scroll (int ma, int aa, int back);
+static int cmd_process_transfer (int ma, int aa, int mb, int ab);
+static int cmd_process_yank (int ma, int aa, int mb, int ab);
 
-int buf_scroll (struct buf *this, int addr)
-{
-	if (!this)
-		return 1;
-	int last;
-	this->scroll = addr;
-
-	if (this->scroll < 0) {
-		this->scroll = 0;
-		return 0;
-	}
-
-	last = buf_lastline(this) - T.lines;
-	if (this->scroll > last) {
-		this->scroll = last;
-	}
-	return 0;
-}
-
-int cmd_reset (void)
-{
-	memset(cmd, 0, sizeof(cmd));
-	cmdwi = 0;
-	return 0;
-}
-
-int cmd_update (char c)
-{
-	if (c == ASCII_DEL) {
-		if (cmdwi > 0)
-			cmd[--cmdwi] = 0;
-		return 0;
-	}
-	if (cmdwi < sizeof(cmd) - 1) {
-		cmd[cmdwi++] = c;
-		cmd[cmdwi] = 0;
-	}
-	return 0;
-}
-
-static int cmd_parseaddr (int *addr) {
+static int parseaddr (int *addr) {
 	char byte;
 	int rel = 0;
 	int match = 0;
@@ -122,19 +84,19 @@ static int cmd_parseaddr (int *addr) {
 	return match;
 }
 
-static int cmd_parsecomma (int *addr)
+static int parsecomma (int *addr)
 {
 	int match = 0;
 
 	if (cmd[cmdri] == ',') {
 		cmdri++;
-		match = cmd_parseaddr(addr);
+		match = parseaddr(addr);
 	}
 
 	return match;
 }
 
-static int cmd_moveto (int y)
+static int moveto (int y)
 {
 	if (!Buf)
 		return 1;
@@ -149,6 +111,75 @@ static int cmd_moveto (int y)
 	else {
 		buf_scroll(Buf, y - T.lines);
 		term_set_y(T.lines);
+	}
+	return 0;
+}
+
+// static int buf_clip (int delete, int start, int end)
+static int cliptext (int delete, int ma, int aa, int mb, int ab)
+{
+	if (!Buf)
+		return 1;
+
+	int ya = ma ? aa : Buf->scroll + T.y;
+	int yb = (mb ? ab : ya) + 1;
+
+	if (ya >= yb) {
+		memcpy(cmdmsg, "?", 2);
+		return 2;
+	}
+
+	int start = buf_pos(Buf, 0, ya);
+	int end = buf_pos(Buf, 0, yb);
+	int len = end - start;
+	memcpy(cmdclip, Buf->txt + start, len);
+	cmdclip[len + 1] = 0;
+
+	if (delete) {
+		memmove(Buf->txt + start, Buf->txt + end, Buf->len - end);
+		Buf->len -= len;
+		Buf->txt[Buf->len + 1] = 0;
+	}
+	moveto(ya);
+	return 0;
+}
+
+int buf_scroll (struct buf *this, int addr)
+{
+	if (!this)
+		return 1;
+	int last;
+	this->scroll = addr;
+
+	if (this->scroll < 0) {
+		this->scroll = 0;
+		return 0;
+	}
+
+	last = buf_lastline(this) - T.lines;
+	if (this->scroll > last) {
+		this->scroll = last;
+	}
+	return 0;
+}
+
+int cmd_reset (void)
+{
+	memset(cmd, 0, sizeof(cmd));
+	cmdwi = 0;
+	return 0;
+}
+
+int cmd_update (char c)
+{
+	if (c == ASCII_DEL) {
+		if (cmdwi > 0)
+			cmd[--cmdwi] = 0;
+		return 0;
+	}
+	if (cmdwi < sizeof(cmd) - 1) {
+		cmd[cmdwi++] = c;
+		cmd[cmdwi] = 0;
 	}
 	return 0;
 }
@@ -177,32 +208,9 @@ static int cmd_process_buf (void)
 	}
 	return 0;
 }
-
 static int cmd_process_delete (int ma, int aa, int mb, int ab)
 {
-	if (!Buf)
-		return 1;
-
-	int ya = ma ? aa : Buf->scroll + T.y;
-	int yb = (mb ? ab : ya) + 1;
-
-	if (ya >= yb) {
-		memcpy(cmdmsg, "?", 2);
-		return 2;
-	}
-
-	int start = buf_pos(Buf, 0, ya);
-	int end = buf_pos(Buf, 0, yb);
-	int len = end - start;
-
-	memcpy(cmdclip, Buf->txt + start, len);
-	cmdclip[len + 1] = 0;
-	memmove(Buf->txt + start, Buf->txt + end, Buf->len - end);
-	Buf->len -= len;
-	Buf->txt[Buf->len + 1] = 0;
-
-	cmd_moveto(ya);
-	return 0;
+	return cliptext(1, ma, aa, mb, ab);
 }
 
 static int cmd_process_fs (void)
@@ -258,7 +266,7 @@ static int cmd_process_insert (int ma, int aa, int append)
 	Buf->len += cmdlen + 1;
 	Buf->txt[Buf->len + 1] = 0;
 
-	cmd_moveto(y);
+	moveto(y);
 
 	cmduf |= UPDATE_BUF;
 	return 0;
@@ -277,15 +285,14 @@ static int cmd_process_jump (int ma, int aa)
 static int cmd_process_move (int ma, int aa, int mb, int ab)
 {
 	int ac = 0;
-	int mc = cmd_parseaddr(&ac);
+	int mc = parseaddr(&ac);
 	if (!mc)
 		return 1;
-
-	int err = cmd_process_delete(ma, aa, mb, ab);
-	if (err)
-		return err;
-
-	return cmd_process_paste(mc, ac);
+	if (cmd_process_delete(ma, aa, mb, ab))
+		return 2;
+	if (cmd_process_paste(mc, ac))
+		return 3;
+	return 0;
 }
 
 static int cmd_process_movement (void)
@@ -334,7 +341,7 @@ static int cmd_process_paste (int ma, int aa)
 	int count = 0;
 	for (str = cmdclip; *str; str++)
 		count += ((*str) == '\n');
-	cmd_moveto(y + count);
+	moveto(y + count);
 
 	cmduf |= UPDATE_BUF;
 	return 0;
@@ -346,7 +353,7 @@ static int cmd_process_scroll (int ma, int aa, int back)
 		return 1;
 	if (ma) {
 		buf_scroll(Buf, aa);
-		cmd_moveto(aa);
+		moveto(aa);
 	}
 	else {
 		int y = (back ? -1 : 1) * T.lines;
@@ -356,13 +363,31 @@ static int cmd_process_scroll (int ma, int aa, int back)
 	return 0;
 }
 
+static int cmd_process_transfer (int ma, int aa, int mb, int ab)
+{
+	int ac = 0;
+	int mc = parseaddr(&ac);
+	if (!mc)
+		return 1;
+	if (cmd_process_yank(ma, aa, mb, ab))
+		return 2;
+	if (cmd_process_paste(mc, ac))
+		return 3;
+	return 0;
+}
+
+static int cmd_process_yank (int ma, int aa, int mb, int ab)
+{
+	return cliptext(0, ma, aa, mb, ab);
+}
+
 int cmd_process (void)
 {
 	int aa = 0;
-	int ma = cmd_parseaddr(&aa);
+	int ma = parseaddr(&aa);
 
 	int ab = 0;
-	int mb = cmd_parsecomma(&ab);
+	int mb = parsecomma(&ab);
 
 	switch (cmd[cmdri++]) {
 	case 'F':
@@ -389,8 +414,14 @@ int cmd_process (void)
 	case 'p':
 		cmd_process_movement();
 		break;
+	case 't':
+		cmd_process_transfer(ma, aa, mb, ab);
+		break;
 	case 'x':
 		cmd_process_paste(ma, aa);
+		break;
+	case 'y':
+		cmd_process_yank(ma, aa, mb, ab);
 		break;
 	case 'z':
 		cmd_process_scroll(ma, aa, 0);
