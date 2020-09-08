@@ -1,6 +1,6 @@
 #ifndef CMD_h
 #define CMD_h 1
-#include <stdio.h>
+#include <stddef.h>
 
 enum cmd_uflags {
 	UPDATE_ECHO = 1 << 0,
@@ -10,14 +10,13 @@ enum cmd_uflags {
 	UPDATE_RUN = 1 << 4,
 };
 
-extern char cmd[256];
-extern char cmdmsg[BUFSIZ];
-extern size_t cmdwi; /* command write index */
-extern size_t cmdri; /* command read index */
-extern unsigned char cmdmo; /* command mode */
-extern unsigned int cmduf; /* command update flags */
+extern char cmdline[256];
+extern char cmdmsg[256];
+extern size_t clwi; /* command line write index */
+extern size_t clri; /* command line read index */
+extern unsigned int cluf; /* command line update flags */
 
-int cmd_process (void);
-int cmd_reset (void);
-int cmd_update (char c);
+int cmdline_process (void);
+int cmdline_reset (void);
+int cmdline_update (char c);
 #endif

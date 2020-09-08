@@ -108,8 +108,8 @@ static int editor_echo_draw (void)
 	printf("\x1b[%dH\x1b[K", T.lines + 2);
 	printf("(%d,%d)", (Buf ? Buf->scroll : 0) + T.y + 1, T.x + 1);
 	printf(" ");
-	for (int i = 0, len = strlen(cmd); i < len; i++)
-		ascii_fprintc(stdout, cmd[i]);
+	for (int i = 0, len = strlen(cmdline); i < len; i++)
+		ascii_fprintc(stdout, cmdline[i]);
 	term_commit();
 	return 0;
 }
@@ -119,24 +119,24 @@ int main (int argc, char *argv[])
 	int error = 0;
 	unsigned char c = 0;
 
-	cmduf = UPDATE_BUF | UPDATE_ECHO;
+	cluf = UPDATE_BUF | UPDATE_ECHO;
 
 	args_read(argc, argv);
 
 	if (termcfg_init())
 		return 1;
 main_loop:
-	if (cmduf & UPDATE_BUF)
+	if (cluf & UPDATE_BUF)
 		editor_uibg_draw();
-	if (cmduf & UPDATE_BUF)
+	if (cluf & UPDATE_BUF)
 		editor_buf_draw();
-	if (cmduf & UPDATE_CMD)
+	if (cluf & UPDATE_CMD)
 		editor_uifg_draw();
-	if (cmduf & UPDATE_ECHO)
+	if (cluf & UPDATE_ECHO)
 		editor_echo_draw();
-	if (cmduf & UPDATE_CMD)
-		cmd_reset();
-	cmduf = UPDATE_ECHO | UPDATE_BUF;
+	if (cluf & UPDATE_CMD)
+		cmdline_reset();
+	cluf = UPDATE_ECHO | UPDATE_BUF;
 
 	term_move_cursor();
 
@@ -149,11 +149,11 @@ main_loop:
 	case CTRL('q'):
 		goto shutdown;
 	case CTRL('m'):
-		cmd_process();
+		cmdline_process();
 		break;
 	}
 
-	cmd_update(c);
+	cmdline_update(c);
 	goto main_loop;
 shutdown:
 	bufl_close(BufL);

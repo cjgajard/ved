@@ -45,7 +45,9 @@ size_t buf_save (struct buf *this, char *path)
 	if (!(f = fopen(fpath, "w"))) {
 		return 0;
 	}
-	return fwrite(this->txt, 1, this->len, f);
+	size_t w = fwrite(this->txt, 1, this->len, f);
+	fclose(f);
+	return w;
 }
 
 size_t buf_scroll_pos (struct buf *this)
@@ -62,7 +64,6 @@ struct buf *buf_create (char *path)
 	struct buf *this;
 	if (!(this = malloc(sizeof(*this))))
 		return NULL;
-
 	if (!(this->txt = malloc(BUFSIZ)))
 		return NULL;
 	memset(this->txt, 0, BUFSIZ);
