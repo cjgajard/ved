@@ -1,9 +1,9 @@
 # ved
 
-ved is an alterative visual evolution of ed.
+ved /*v*isual *ed*itor/ is an alterative visual evolution of ed.
 
 ## Features
+
 * Picture-in-picture interfaces.
-    - Opened files tree.
-* Custom modes.
-* Custom gutter columns.
+  - Custom gutter columns.
+* Buffer stacks.
