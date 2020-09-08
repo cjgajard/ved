@@ -14,6 +14,16 @@ unsigned int cmduf = 0;
 
 char cmdclip[BUFSIZ];
 
+static int cmd_process_buf (void);
+static int cmd_process_delete (int ma, int aa, int mb, int ab);
+static int cmd_process_fs (void);
+static int cmd_process_insert (int ma, int aa, int append);
+static int cmd_process_jump (int ma, int aa);
+static int cmd_process_move (int ma, int aa, int mb, int ab);
+static int cmd_process_movement (void);
+static int cmd_process_paste (int ma, int aa);
+static int cmd_process_scroll (int ma, int aa, int back);
+
 int buf_scroll (struct buf *this, int addr)
 {
 	if (!this)
@@ -168,7 +178,7 @@ static int cmd_process_buf (void)
 	return 0;
 }
 
-static int cmd_process_cut (int ma, int aa, int mb, int ab)
+static int cmd_process_delete (int ma, int aa, int mb, int ab)
 {
 	if (!Buf)
 		return 1;
@@ -178,7 +188,7 @@ static int cmd_process_cut (int ma, int aa, int mb, int ab)
 
 	if (ya >= yb) {
 		memcpy(cmdmsg, "?", 2);
-		return 1;
+		return 2;
 	}
 
 	int start = buf_pos(Buf, 0, ya);
@@ -264,7 +274,21 @@ static int cmd_process_jump (int ma, int aa)
 	return 0;
 }
 
-static int cmd_process_mv (void)
+static int cmd_process_move (int ma, int aa, int mb, int ab)
+{
+	int ac = 0;
+	int mc = cmd_parseaddr(&ac);
+	if (!mc)
+		return 1;
+
+	int err = cmd_process_delete(ma, aa, mb, ab);
+	if (err)
+		return err;
+
+	return cmd_process_paste(mc, ac);
+}
+
+static int cmd_process_movement (void)
 {
 	while (cmdri < sizeof(cmd) && cmd[cmdri]) {
 		switch (cmd[cmdri++]) {
@@ -357,10 +381,13 @@ int cmd_process (void)
 		cmd_process_insert(ma, aa, 0);
 		break;
 	case 'd':
-		cmd_process_cut(ma, aa, mb, ab);
+		cmd_process_delete(ma, aa, mb, ab);
+		break;
+	case 'm':
+		cmd_process_move(ma, aa, mb, ab);
 		break;
 	case 'p':
-		cmd_process_mv();
+		cmd_process_movement();
 		break;
 	case 'x':
 		cmd_process_paste(ma, aa);
