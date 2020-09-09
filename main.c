@@ -5,12 +5,12 @@
 #include "cmd.h"
 #include "term.h"
 
-#define CTRL(x) ((x) & 0x1f)
-
 struct termcfg T;
 
 static char range_color[] = "44";
 static char column_separator[] = "\x1b[37m|\x1b[0m";
+
+static struct command cmd = {0};
 
 static int args_read (int argc, char *argv[])
 {
@@ -38,10 +38,12 @@ static int editor_uibg_draw (void)
 
 static int lineinrange (int y)
 {
+	if (!cmd.ma)
+		return y == T.y;
 	int ln = (Buf ? Buf->scroll : 0) + y;
-	return (!clma)
-		?  y == T.y
-		: ((clmb) ?  ln >= claa && ln <= clab : ln == claa);
+	if (!cmd.mb)
+		return ln == cmd.aa;
+	return ln >= cmd.aa && ln <= cmd.ab;
 }
 
 static int editor_buf_draw (void)
@@ -121,13 +123,10 @@ int main (int argc, char *argv[])
 {
 	int error = 0;
 	unsigned char c = 0;
-
-	cluf = UPDATE_BUF | UPDATE_ECHO;
-
 	args_read(argc, argv);
-
 	if (termcfg_init())
 		return 1;
+	cluf = UPDATE_BUF | UPDATE_ECHO;
 main_loop:
 	if (cluf & UPDATE_BUF)
 		editor_uibg_draw();
@@ -141,24 +140,18 @@ main_loop:
 		cmdline_reset();
 	cluf = UPDATE_ECHO | UPDATE_BUF;
 
-	term_move_cursor();
-
 	if (term_read(&c)) {
 		error = 1;
 		goto shutdown;
 	}
-
-	switch (c) {
-	case CTRL('q'):
-		goto shutdown;
-	case CTRL('m'):
-		if (cmdline_exec())
+	cmdline_update(c);
+	cmdline_read(&cmd);
+	if (c == CTRL('m')) {
+		int result = cmd.Do ? cmd.Do(&cmd) : 0;
+		if (result == CMD_QUIT)
 			goto shutdown;
-		break;
-	default:
-		cmdline_update(c);
-		cmdline_process();
-		break;
+		memset(&cmd, 0, sizeof(cmd));
+		cluf |= UPDATE_CMD;
 	}
 	goto main_loop;
 shutdown:
