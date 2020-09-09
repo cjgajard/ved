@@ -144,7 +144,8 @@ main_loop:
 	case CTRL('q'):
 		goto shutdown;
 	case CTRL('m'):
-		cmdline_process();
+		if (cmdline_process())
+			goto shutdown;
 		break;
 	}
 

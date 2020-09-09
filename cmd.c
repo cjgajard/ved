@@ -422,6 +422,9 @@ int cmdline_process (void)
 	case 'p':
 		cmd_do_movement();
 		break;
+	case 'q':
+		/* check dirty */
+		return 1;
 	case 't':
 		cmd_do_transfer(ma, aa, mb, ab);
 		break;
