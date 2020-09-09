@@ -9,7 +9,7 @@
 
 struct termcfg T;
 
-static char *range_color = "44";
+static char range_color[] = "44";
 static char column_separator[] = "\x1b[37m|\x1b[0m";
 
 static int args_read (int argc, char *argv[])
