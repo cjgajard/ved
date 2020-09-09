@@ -146,7 +146,7 @@ static int cliptext (int delete, int ma, int aa, int mb, int ab)
 	if (delete) {
 		memmove(Buf->txt + start, Buf->txt + end, Buf->len - end);
 		Buf->len -= len;
-		Buf->txt[Buf->len + 1] = 0;
+		Buf->txt[Buf->len] = 0;
 	}
 
 	moveto(ya);
