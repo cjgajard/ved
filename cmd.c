@@ -251,7 +251,7 @@ static int cmd_do_insert (int ma, int aa, int append)
 	memcpy(Buf->txt + pos, cmdstr, cmdlen);
 	Buf->txt[pos + cmdlen] = '\n';
 	Buf->len += cmdlen + 1;
-	Buf->txt[Buf->len + 1] = 0;
+	Buf->txt[Buf->len] = 0;
 
 	moveto(y);
 
@@ -322,7 +322,7 @@ static int cmd_do_paste (int ma, int aa)
 	memmove(Buf->txt + pos + len, Buf->txt + pos, Buf->len - pos);
 	memcpy(Buf->txt + pos, cmdclip, len);
 	Buf->len += len;
-	Buf->txt[Buf->len + 1] = 0;
+	Buf->txt[Buf->len] = 0;
 
 	char *str;
 	int count = 0;
