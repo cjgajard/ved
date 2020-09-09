@@ -15,8 +15,11 @@ extern char cmdmsg[256];
 extern size_t clwi; /* command line write index */
 extern size_t clri; /* command line read index */
 extern unsigned int cluf; /* command line update flags */
+extern int clma, claa;
+extern int clmb, clab;
 
 int cmdline_process (void);
+int cmdline_exec (void);
 int cmdline_reset (void);
 int cmdline_update (char c);
 #endif

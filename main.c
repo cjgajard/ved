@@ -36,6 +36,14 @@ static int editor_uibg_draw (void)
 	return 0;
 }
 
+static int lineinrange (int y)
+{
+	int ln = (Buf ? Buf->scroll : 0) + y;
+	return (!clma)
+		?  y == T.y
+		: ((clmb) ?  ln >= claa && ln <= clab : ln == claa);
+}
+
 static int editor_buf_draw (void)
 {
 	if (!Buf)
@@ -49,7 +57,7 @@ static int editor_buf_draw (void)
 	for (int y = 0; y < T.lines; y++) {
 		printf("\x1b[K");
 
-		int is_range = y == T.y;
+		int is_range = lineinrange(y);
 		if (is_range)
 			printf("\x1b[%sm", range_color);
 		printf("%*d", linenr_w, Buf->scroll + y + 1);
@@ -144,12 +152,14 @@ main_loop:
 	case CTRL('q'):
 		goto shutdown;
 	case CTRL('m'):
-		if (cmdline_process())
+		if (cmdline_exec())
 			goto shutdown;
 		break;
+	default:
+		cmdline_update(c);
+		cmdline_process();
+		break;
 	}
-
-	cmdline_update(c);
 	goto main_loop;
 shutdown:
 	bufl_close(BufL);

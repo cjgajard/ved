@@ -389,7 +389,24 @@ int cmdline_update (char c)
 	return 0;
 }
 
+int clma = 0, claa = 0;
+int clmb = 0, clab = 0;
+
 int cmdline_process (void)
+{
+	claa = 0;
+	clma = parseaddr(&claa);
+	clma += parsecomma(clma ? NULL : &claa);
+	clab = 0;
+	clmb = parseaddr(&clab);
+
+	clri = 0;
+	cluf |= UPDATE_BUF;
+	cluf |= UPDATE_BUF;
+	return 0;
+}
+
+int cmdline_exec (void)
 {
 	int aa = 0;
 	int ma = parseaddr(&aa);
@@ -442,6 +459,8 @@ int cmdline_process (void)
 		break;
 	}
 
+	clma = 0;
+	clmb = 0;
 	clri = 0;
 	cluf |= UPDATE_CMD;
 	return 0;
