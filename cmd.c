@@ -328,7 +328,7 @@ static int cmd_do_paste (int ma, int aa)
 	int count = 0;
 	for (str = cmdclip; *str; str++)
 		count += ((*str) == '\n');
-	moveto(y + count);
+	moveto(y + count - 1);
 
 	cluf |= UPDATE_BUF;
 	return 0;
