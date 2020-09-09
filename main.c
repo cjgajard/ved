@@ -10,7 +10,7 @@
 struct termcfg T;
 
 static char *range_color = "44";
-static char *cursor_color = "105";
+static char column_separator[] = "\x1b[37m|\x1b[0m";
 
 static int args_read (int argc, char *argv[])
 {
@@ -45,20 +45,21 @@ static int editor_buf_draw (void)
 	size_t fpos = buf_scroll_pos(Buf);
 
 	term_move_topleft();
+	int linenr_w = snprintf(NULL, 0, "%i", Buf->scroll + T.lines);
 	for (int y = 0; y < T.lines; y++) {
 		printf("\x1b[K");
 
 		int is_range = y == T.y;
 		if (is_range)
 			printf("\x1b[%sm", range_color);
-		printf("%d\t", Buf->scroll + y + 1);
+		printf("%*d", linenr_w, Buf->scroll + y + 1);
 		if (is_range)
 			printf("\x1b[0m");
+		printf("%s", column_separator);
 
 		int nextline = 0;
 		for (int x = 0; x < T.cols; x++) {
 			char byte = ' ';
-			int is_cursor = y == T.y && x == T.x;
 			int is_tab = 0;
 			if (!nextline) {
 				if (fpos >= Buf->siz)
@@ -79,11 +80,7 @@ static int editor_buf_draw (void)
 					break;
 				}
 			}
-			if (is_cursor)
-				printf("\x1b[%sm", cursor_color);
 			printf("%c", byte);
-			if (is_cursor)
-				printf("\x1b[0m");
 			if (is_tab)
 				printf("%-7c", ' ');
 
@@ -105,9 +102,7 @@ static int editor_uifg_draw (void)
 
 static int editor_echo_draw (void)
 {
-	printf("\x1b[%dH\x1b[K", T.lines + 2);
-	printf("(%d,%d)", (Buf ? Buf->scroll : 0) + T.y + 1, T.x + 1);
-	printf(" ");
+	printf("\x1b[%dH\x1b[K:", T.lines + 2);
 	for (int i = 0, len = strlen(cmdline); i < len; i++)
 		ascii_fprintc(stdout, cmdline[i]);
 	term_commit();

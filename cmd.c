@@ -243,7 +243,7 @@ static int cmd_do_insert (int ma, int aa, int append)
 		return 2;
 	}
 
-	int x = T.x;
+	int x = 0;
 	int y = (ma ? aa : currentaddr()) + append;
 	int pos = buf_pos(Buf, x, y);
 
