@@ -12,6 +12,7 @@ struct buf {
 
 int buf_lastline (struct buf *this);
 int buf_scroll (struct buf *this, int addr);
+size_t buf_cliplen (int ya, int yb, size_t *start);
 size_t buf_pos (struct buf *this, int x, int y);
 size_t buf_save (struct buf *this, char *path);
 size_t buf_scroll_pos (struct buf *this);

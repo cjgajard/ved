@@ -28,6 +28,25 @@ static int cmd_do_transfer (struct command *this);
 static int cmd_do_yank (struct command *this);
 static int cmd_do_quit (struct command *this);
 
+int buf_scroll (struct buf *this, int addr)
+{
+	if (!this)
+		return 1;
+	int last;
+	this->scroll = addr;
+
+	if (this->scroll < 0) {
+		this->scroll = 0;
+		return 0;
+	}
+
+	last = buf_lastline(this) - T.lines;
+	if (this->scroll > last) {
+		this->scroll = last;
+	}
+	return 0;
+}
+
 static int currentaddr (void)
 {
 	return (!Buf ? 0 : Buf->scroll) + T.y;
@@ -111,6 +130,8 @@ static int parsecomma (int *aa)
 	}
 }
 
+/* ACTIONS --------------------------------------------- */
+
 static int moveto (int y)
 {
 	if (!Buf) {
@@ -131,23 +152,20 @@ static int moveto (int y)
 }
 
 static int cliptext (int delete, int ma, int aa, int mb, int ab)
+static int cliptext (int ya, int yb, int delete)
 {
 	if (!Buf)
 		return 1;
 
-	int ya = ma ? aa : currentaddr();
-	int yb = (mb ? ab : ya) + 1;
-	if (ya >= yb)
-		return 2;
+	size_t start = 0;
+	size_t len = buf_cliplen(ya, yb, &start);
 
-	int start = buf_pos(Buf, 0, ya);
-	int end = buf_pos(Buf, 0, yb);
-	int len = end - start;
-	memcpy(cmdclip, Buf->txt + start, len);
-	cmdclip[len + 1] = 0;
+	char *target = Buf->txt + start;
+	memcpy(cmdclip, target, len);
+	cmdclip[len] = 0;
 
 	if (delete) {
-		memmove(Buf->txt + start, Buf->txt + end, Buf->len - end);
+		memmove(target, target + len, Buf->len - start -len);
 		Buf->len -= len;
 		Buf->txt[Buf->len] = 0;
 	}
@@ -156,24 +174,52 @@ static int cliptext (int delete, int ma, int aa, int mb, int ab)
 	return 0;
 }
 
-int buf_scroll (struct buf *this, int addr)
+static int insert (int ma, int aa, int append)
 {
-	if (!this)
+	if (!Buf)
 		return 1;
-	int last;
-	this->scroll = addr;
 
-	if (this->scroll < 0) {
-		this->scroll = 0;
-		return 0;
+	char *cmdstr = cmdline + clri;
+	size_t cmdlen = strlen(cmdstr);
+
+	if (Buf->len + cmdlen + 2 >= Buf->siz) {
+		fprintf(stderr, "txt should be resized\n"); // FIXME
+		return 2;
 	}
 
-	last = buf_lastline(this) - T.lines;
-	if (this->scroll > last) {
-		this->scroll = last;
-	}
+	int x = 0;
+	int y = (ma ? aa : currentaddr()) + append;
+	int pos = buf_pos(Buf, x, y);
+
+	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
+	memcpy(Buf->txt + pos, cmdstr, cmdlen);
+	Buf->txt[pos + cmdlen] = '\n';
+	Buf->len += cmdlen + 1;
+	Buf->txt[Buf->len] = 0;
+
+	moveto(y);
+
+	cluf |= UPDATE_BUF;
 	return 0;
 }
+
+static int scroll (int ma, int aa, int back)
+{
+	if (!Buf)
+		return 1;
+	if (ma) {
+		buf_scroll(Buf, aa);
+		moveto(aa);
+	}
+	else {
+		int y = (back ? -1 : 1) * T.lines;
+		buf_scroll(Buf, Buf->scroll + y);
+	}
+	cluf |= UPDATE_BUF;
+	return 0;
+}
+
+/* COMMANDS --------------------------------------------- */
 
 static int cmd_do_buf (struct command *this)
 {
@@ -203,7 +249,13 @@ static int cmd_do_buf (struct command *this)
 
 static int cmd_do_delete (struct command *this)
 {
-	return cliptext(1, this->ma, this->aa, this->mb, this->ab);
+	int ya = this->ma ? this->aa : currentaddr();
+	int yb = (this->mb ? this->ab : ya) + 1;
+	if (ya >= yb)
+		return 1;
+	if (cliptext(ya, yb, 1))
+		return 2;
+	return 0;
 }
 
 static int cmd_do_fs (struct command *this)
@@ -232,35 +284,6 @@ static int cmd_do_fs (struct command *this)
 			return 0;
 		}
 	}
-	return 0;
-}
-
-static int insert (int ma, int aa, int append)
-{
-	if (!Buf)
-		return 1;
-
-	char *cmdstr = cmdline + clri;
-	size_t cmdlen = strlen(cmdstr);
-	
-	if (Buf->len + cmdlen + 2 >= Buf->siz) {
-		fprintf(stderr, "txt should be resized\n"); // FIXME
-		return 2;
-	}
-
-	int x = 0;
-	int y = (ma ? aa : currentaddr()) + append;
-	int pos = buf_pos(Buf, x, y);
-
-	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
-	memcpy(Buf->txt + pos, cmdstr, cmdlen);
-	Buf->txt[pos + cmdlen] = '\n';
-	Buf->len += cmdlen + 1;
-	Buf->txt[Buf->len] = 0;
-
-	moveto(y);
-
-	cluf |= UPDATE_BUF;
 	return 0;
 }
 
@@ -331,9 +354,8 @@ static int cmd_do_paste (struct command *this)
 		return 2;
 	}
 
-	int x = 0;
 	int y = (this->ma ? this->aa : currentaddr()) + 1;
-	int pos = buf_pos(Buf, x, y);
+	int pos = buf_pos(Buf, 0, y);
 
 	memmove(Buf->txt + pos + len, Buf->txt + pos, Buf->len - pos);
 	memcpy(Buf->txt + pos, cmdclip, len);
@@ -346,22 +368,6 @@ static int cmd_do_paste (struct command *this)
 		count += ((*str) == '\n');
 	moveto(y + count - 1);
 
-	cluf |= UPDATE_BUF;
-	return 0;
-}
-
-static int scroll (int ma, int aa, int back)
-{
-	if (!Buf)
-		return 1;
-	if (ma) {
-		buf_scroll(Buf, aa);
-		moveto(aa);
-	}
-	else {
-		int y = (back ? -1 : 1) * T.lines;
-		buf_scroll(Buf, Buf->scroll + y);
-	}
 	cluf |= UPDATE_BUF;
 	return 0;
 }
@@ -391,7 +397,13 @@ static int cmd_do_transfer (struct command *this)
 
 static int cmd_do_yank (struct command *this)
 {
-	return cliptext(0, this->ma, this->aa, this->mb, this->ab);
+	int ya = this->ma ? this->aa : currentaddr();
+	int yb = (this->mb ? this->ab : ya) + 1;
+	if (ya >= yb)
+		return 1;
+	if (cliptext(ya, yb, 0))
+		return 2;
+	return 0;
 }
 
 static int cmd_do_quit (struct command *this)
@@ -400,6 +412,8 @@ static int cmd_do_quit (struct command *this)
 	/* TODO check dirty */
 	return CMD_QUIT;
 }
+
+/* METHODS --------------------------------------------- */
 
 int cmdline_reset (void)
 {
@@ -437,40 +451,40 @@ int cmdline_read (struct command *cmd)
 		cmd->Do = &cmd_do_buf;
 		break;
 	case 'Z':
-		cmd->Do = &cmd_do_scrollback; // (ma, aa, 1);
+		cmd->Do = &cmd_do_scrollback;
 		break;
 	case 'a':
-		cmd->Do = &cmd_do_append; // (ma, aa, 1);
+		cmd->Do = &cmd_do_append;
 		break;
 	case 'i':
-		cmd->Do = &cmd_do_insert; // (ma, aa, 0);
+		cmd->Do = &cmd_do_insert;
 		break;
 	case 'd':
-		cmd->Do = &cmd_do_delete; // (ma, aa, mb, ab);
+		cmd->Do = &cmd_do_delete;
 		break;
 	case 'm':
-		cmd->Do = &cmd_do_move; // (ma, aa, mb, ab);
+		cmd->Do = &cmd_do_move;
 		break;
 	case 'p':
-		cmd->Do = &cmd_do_movement; // ();
+		cmd->Do = &cmd_do_movement;
 		break;
 	case 'q':
 		cmd->Do = &cmd_do_quit;
 		break;
 	case 't':
-		cmd->Do = &cmd_do_transfer; // (ma, aa, mb, ab);
+		cmd->Do = &cmd_do_transfer;
 		break;
 	case 'x':
-		cmd->Do = &cmd_do_paste; // (ma, aa);
+		cmd->Do = &cmd_do_paste;
 		break;
 	case 'y':
-		cmd->Do = &cmd_do_yank; // (ma, aa, mb, ab);
+		cmd->Do = &cmd_do_yank;
 		break;
 	case 'z':
-		cmd->Do = &cmd_do_scroll; // (ma, aa, 0);
+		cmd->Do = &cmd_do_scroll;
 		break;
 	case '\0':
-		cmd->Do = &cmd_do_jump; // (ma, aa);
+		cmd->Do = &cmd_do_jump;
 		break;
 	default:
 		cmd->Do = NULL;

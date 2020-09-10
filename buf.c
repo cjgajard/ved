@@ -38,6 +38,15 @@ size_t buf_pos (struct buf *this, int x, int y)
 	return fpos;
 }
 
+size_t buf_cliplen (int ya, int yb, size_t *start)
+{
+	size_t a = buf_pos(Buf, 0, ya);
+	size_t b = buf_pos(Buf, 0, yb);
+	if (start)
+		*start = a;
+	return b - a;
+}
+
 size_t buf_save (struct buf *this, char *path)
 {
 	char *fpath = path[0] ? path : this->path;
