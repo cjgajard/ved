@@ -151,7 +151,15 @@ static int moveto (int y)
 	return 0;
 }
 
-static int cliptext (int delete, int ma, int aa, int mb, int ab)
+static int clipln (void)
+{
+	char *str;
+	int count = 0;
+	for (str = cmdclip; *str; str++)
+		count += ((*str) == '\n');
+	return count;
+}
+
 static int cliptext (int ya, int yb, int delete)
 {
 	if (!Buf)
@@ -311,12 +319,13 @@ static int cmd_do_move (struct command *this)
 {
 	struct command pastecmd = {0};
 	pastecmd.ma = parseaddr(&pastecmd.aa);
-	if (!pastecmd.ma)
-		return 1;
+	// TODO check dst is not in src range
 	if (cmd_do_delete(this))
-		return 2;
+		return 1;
+	if (pastecmd.aa >= this->ab)
+		pastecmd.aa -= clipln();
 	if (cmd_do_paste(&pastecmd))
-		return 3;
+		return 2;
 	return 0;
 }
 
@@ -362,10 +371,7 @@ static int cmd_do_paste (struct command *this)
 	Buf->len += len;
 	Buf->txt[Buf->len] = 0;
 
-	char *str;
-	int count = 0;
-	for (str = cmdclip; *str; str++)
-		count += ((*str) == '\n');
+	int count = clipln();
 	moveto(y + count - 1);
 
 	cluf |= UPDATE_BUF;
