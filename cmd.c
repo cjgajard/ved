@@ -309,6 +309,8 @@ static int cmd_do_jump (struct command *this)
 {
 	if (!this->ma)
 		return 1;
+	if (!Buf)
+		return 2;
 	buf_scroll(Buf, this->aa - T.lines / 2);
 	term_set_x(0);
 	term_set_y(this->aa - Buf->scroll);
