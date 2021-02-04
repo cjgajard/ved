@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "ascii.h"
-#include "buf.h"
+#include "bufl.h"
 #include "cmd.h"
 #include "term.h"
 

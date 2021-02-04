@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -std=c17 -Werror -Wall -Wextra
 CLIB =
 
-OBJ = main.o term.o buf.o cmd.o ascii.o
+OBJ = main.o term.o buf.o bufl.o cmd.o ascii.o
 OUT = ved
 
 $(OUT): $(OBJ)
