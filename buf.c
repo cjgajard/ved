@@ -2,6 +2,8 @@
 #include <string.h>
 #include "buf.h"
 
+#define BUFADDITIONAL 512
+
 struct buf *Buf = NULL;
 struct bufl *BufL = NULL;
 
@@ -73,22 +75,30 @@ struct buf *buf_create (char *path)
 	struct buf *this;
 	if (!(this = malloc(sizeof(*this))))
 		return NULL;
-	if (!(this->txt = malloc(BUFSIZ)))
-		return NULL;
-	memset(this->txt, 0, BUFSIZ);
-	this->siz = BUFSIZ;
-	this->len = 0;
-	this->scroll = 0;
-
-	strncpy(this->path, path, sizeof(this->path));
 
 	FILE *src;
 	if (!(src = fopen(path, "r")))
 		return NULL;
-	fread(this->txt, 1, BUFSIZ, src);
+
+	fseek(src, 0, SEEK_END);
+	long len = ftell(src);
+	long size = 0;
+	while (size < len + BUFADDITIONAL)
+		size += BUFSIZ;
+
+	if (!(this->txt = malloc(size)))
+		return NULL;
+
+	memset(this->txt, 0, size);
+	fseek(src, 0, SEEK_SET);
+	fread(this->txt, 1, size, src);
+	this->txt[size - 1] = 0;
 	fclose(src);
-	this->txt[BUFSIZ - 1] = 0;
-	this->len = strlen(this->txt);
+
+	this->siz = size;
+	this->len = len;
+	this->scroll = 0;
+	strncpy(this->path, path, sizeof(this->path));
 
 	return this;
 }
