@@ -13,9 +13,26 @@ enum cmd_uflags {
 	UPDATE_RUN = 1 << 4,
 };
 
+/*
+	y	t	d	m	x	z	null
+del	0	0	1	1	0	0	0
+src	1	1	1	1	0	0	0
+->mc	0	1	0	1	1	0	0
+mov	0	0	0	0	0	1	1
+	b_	bg	r_	rg	_g	b	b
+*/
+
+enum cmd_editflags {
+	EDIT_KIL = 1 << 0,
+	EDIT_SRC = 1 << 1,
+	EDIT_MOV = 1 << 2,
+};
+
 struct command {
 	int ma, aa;
 	int mb, ab;
+	int mc, ac;
+	enum cmd_editflags edit;
 	int (*Do)(struct command *this);
 };
 

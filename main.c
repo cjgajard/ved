@@ -7,7 +7,12 @@
 
 struct termcfg T;
 
-static char range_color[] = "44";
+static char cur_color[] = "43";
+static char kil_color[] = "41";
+static char mov_color[] = "44";
+static char mov_cur_color[] = "46";
+static char dst_color[] = "42";
+
 static char column_separator[] = "\x1b[37m|\x1b[0m";
 
 static struct command cmd = {0};
@@ -36,14 +41,32 @@ static int editor_uibg_draw (void)
 	return 0;
 }
 
-static int lineinrange (int y)
+static char *line_color (int y)
 {
-	if (!cmd.ma)
-		return y == T.y;
-	int ln = (Buf ? Buf->scroll : 0) + y;
-	if (!cmd.mb)
-		return ln == cmd.aa;
-	return ln >= cmd.aa && ln <= cmd.ab;
+	int addr = y + (Buf ? Buf->scroll : 0);
+	if (cmd.mc && addr == cmd.ac)
+		return dst_color;
+
+	char *range_color = NULL;
+	if (cmd.edit & EDIT_KIL)
+		range_color = kil_color;
+	else if (cmd.edit & EDIT_SRC)
+		range_color = mov_color;
+	else if (cmd.edit & EDIT_MOV)
+		range_color = mov_color;
+
+	int is_cursor = y == T.y;
+	if (range_color) {
+		if (is_cursor)
+			range_color = mov_cur_color;
+		if (cmd.mb && (addr >= cmd.aa && addr <= cmd.ab))
+			return range_color;
+		if (addr == cmd.aa)
+			return range_color;
+	}
+	if (is_cursor)
+		return cur_color;
+	return NULL;
 }
 
 static int editor_buf_draw (void)
@@ -59,11 +82,11 @@ static int editor_buf_draw (void)
 	for (int y = 0; y < T.lines; y++) {
 		printf("\x1b[K");
 
-		int is_range = lineinrange(y);
-		if (is_range)
-			printf("\x1b[%sm", range_color);
+		char *color = line_color(y);
+		if (color)
+			printf("\x1b[%sm", color);
 		printf("%*d", linenr_w, Buf->scroll + y + 1);
-		if (is_range)
+		if (color)
 			printf("\x1b[0m");
 		printf("%s", column_separator);
 
@@ -93,7 +116,6 @@ static int editor_buf_draw (void)
 			printf("%c", byte);
 			if (is_tab)
 				printf("%-7c", ' ');
-
 		}
 
 		printf("\r\n");

@@ -47,9 +47,9 @@ int buf_scroll (struct buf *this, int addr)
 	return 0;
 }
 
-static int currentaddr (void)
+int buf_addr (struct buf *this)
 {
-	return (!Buf ? 0 : Buf->scroll) + T.y;
+	return (this ? this->scroll : 0) + T.y;
 }
 
 static int parseaddr (int *addr) {
@@ -67,7 +67,7 @@ static int parseaddr (int *addr) {
 			continue;
 		}
 		if (byte == '.') {
-			*addr = currentaddr();
+			*addr = buf_addr(Buf);
 			match += 1;
 			continue;
 		}
@@ -75,7 +75,7 @@ static int parseaddr (int *addr) {
 			if (!Buf)
 				return 0;
 			if (!match)
-				*addr = currentaddr();
+				*addr = buf_addr(Buf);
 			match += 1;
 			rel = 1;
 		}
@@ -123,7 +123,7 @@ static int parsecomma (int *aa)
 		clri++;
 		if (!aa)
 			return 0;
-		*aa = currentaddr();
+		*aa = buf_addr(Buf);
 		return 1;
 	default:
 		return 0;
@@ -151,7 +151,7 @@ static int moveto (int y)
 	return 0;
 }
 
-static int clipln (void)
+static int cmdclip_lines (void)
 {
 	char *str;
 	int count = 0;
@@ -196,7 +196,7 @@ static int insert (int ma, int aa, int append)
 	}
 
 	int x = 0;
-	int y = (ma ? aa : currentaddr()) + append;
+	int y = (ma ? aa : buf_addr(Buf)) + append;
 	int pos = buf_pos(Buf, x, y);
 
 	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
@@ -257,7 +257,7 @@ static int cmd_do_buf (struct command *this)
 
 static int cmd_do_delete (struct command *this)
 {
-	int ya = this->ma ? this->aa : currentaddr();
+	int ya = this->ma ? this->aa : buf_addr(Buf);
 	int yb = (this->mb ? this->ab : ya) + 1;
 	if (ya >= yb)
 		return 1;
@@ -319,14 +319,11 @@ static int cmd_do_jump (struct command *this)
 
 static int cmd_do_move (struct command *this)
 {
-	struct command pastecmd = {0};
-	pastecmd.ma = parseaddr(&pastecmd.aa);
-	// TODO check dst is not in src range
 	if (cmd_do_delete(this))
 		return 1;
-	if (pastecmd.aa >= this->ab)
-		pastecmd.aa -= clipln();
-	if (cmd_do_paste(&pastecmd))
+	if (this->ac >= this->ab)
+		this->ac -= cmdclip_lines();
+	if (cmd_do_paste(this))
 		return 2;
 	return 0;
 }
@@ -365,7 +362,7 @@ static int cmd_do_paste (struct command *this)
 		return 2;
 	}
 
-	int y = (this->ma ? this->aa : currentaddr()) + 1;
+	int y = (this->mc ? this->ac : buf_addr(Buf)) + 1;
 	int pos = buf_pos(Buf, 0, y);
 
 	memmove(Buf->txt + pos + len, Buf->txt + pos, Buf->len - pos);
@@ -373,7 +370,7 @@ static int cmd_do_paste (struct command *this)
 	Buf->len += len;
 	Buf->txt[Buf->len] = 0;
 
-	int count = clipln();
+	int count = cmdclip_lines();
 	moveto(y + count - 1);
 
 	cluf |= UPDATE_BUF;
@@ -392,20 +389,16 @@ static int cmd_do_scrollback (struct command *this)
 
 static int cmd_do_transfer (struct command *this)
 {
-	struct command pastecmd = {0};
-	pastecmd.ma = parseaddr(&pastecmd.aa);
-	if (!pastecmd.ma)
-		return 1;
 	if (cmd_do_yank(this))
 		return 2;
-	if (cmd_do_paste(&pastecmd))
+	if (cmd_do_paste(this))
 		return 3;
 	return 0;
 }
 
 static int cmd_do_yank (struct command *this)
 {
-	int ya = this->ma ? this->aa : currentaddr();
+	int ya = this->ma ? this->aa : buf_addr(Buf);
 	int yb = (this->mb ? this->ab : ya) + 1;
 	if (ya >= yb)
 		return 1;
@@ -450,6 +443,9 @@ int cmdline_read (struct command *cmd)
 	cmd->ma = parseaddr(&cmd->aa);
 	cmd->ma += parsecomma(cmd->ma ? NULL : &cmd->aa);
 	cmd->mb = parseaddr(&cmd->ab);
+	cmd->mc = 0;
+	cmd->ac = 0;
+	cmd->edit = 0;
 
 	switch (cmdline[clri++]) {
 	case 'F':
@@ -468,9 +464,12 @@ int cmdline_read (struct command *cmd)
 		cmd->Do = &cmd_do_insert;
 		break;
 	case 'd':
+		cmd->edit = EDIT_KIL | EDIT_SRC;
 		cmd->Do = &cmd_do_delete;
 		break;
 	case 'm':
+		cmd->edit = EDIT_KIL | EDIT_SRC;
+		cmd->mc = parseaddr(&cmd->ac);
 		cmd->Do = &cmd_do_move;
 		break;
 	case 'p':
@@ -480,18 +479,25 @@ int cmdline_read (struct command *cmd)
 		cmd->Do = &cmd_do_quit;
 		break;
 	case 't':
+		cmd->edit = EDIT_SRC;
+		cmd->mc = parseaddr(&cmd->ac);
 		cmd->Do = &cmd_do_transfer;
 		break;
 	case 'x':
+		cmd->mc = cmd->ma;
+		cmd->ac = cmd->aa;
 		cmd->Do = &cmd_do_paste;
 		break;
 	case 'y':
+		cmd->edit = EDIT_SRC;
 		cmd->Do = &cmd_do_yank;
 		break;
 	case 'z':
+		cmd->edit = EDIT_MOV;
 		cmd->Do = &cmd_do_scroll;
 		break;
 	case '\0':
+		cmd->edit = cmd->ma ? EDIT_MOV : 0;
 		cmd->Do = &cmd_do_jump;
 		break;
 	default:
