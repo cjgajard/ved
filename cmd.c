@@ -425,7 +425,7 @@ int cmdline_reset (void)
 
 int cmdline_update (char c)
 {
-	if (c == ASCII_DEL) {
+	if (c == ASCII_DEL || c == ASCII_BS) {
 		if (clwi > 0)
 			cmdline[--clwi] = 0;
 		return 0;
