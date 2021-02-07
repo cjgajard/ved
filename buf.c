@@ -18,31 +18,13 @@ int buf_lastline (struct buf *this)
 	return addr;
 }
 
-size_t buf_pos (struct buf *this, int x, int y)
+size_t buf_pos (struct buf *this, int y)
 {
 	size_t fpos = 0;
 	for (int i = 0; i < y; i++) {
 		while (fpos < this->len && this->txt[fpos++] != '\n');
 	}
-	for (int i = 0; i < x; i++) {
-		if (fpos >= this->siz)
-			break;
-		char c = this->txt[fpos++];
-		if (c == '\n')
-			break;
-		if (c == '\t')
-			i += 7; // FIXME
-	}
 	return fpos;
-}
-
-size_t buf_cliplen (int ya, int yb, size_t *start)
-{
-	size_t a = buf_pos(Buf, 0, ya);
-	size_t b = buf_pos(Buf, 0, yb);
-	if (start)
-		*start = a;
-	return b - a;
 }
 
 size_t buf_save (struct buf *this, char *path)

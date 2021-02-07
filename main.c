@@ -6,16 +6,15 @@
 #include "term.h"
 
 struct termcfg T;
-
-static char cur_color[] = "43";
-static char kil_color[] = "41";
-static char mov_color[] = "44";
-static char mov_cur_color[] = "46";
-static char dst_color[] = "42";
+static struct command cmd = {0};
 
 static char column_separator[] = "\x1b[37m|\x1b[0m";
-
-static struct command cmd = {0};
+static char cur_color[] = "43";
+static char dst_color[] = "42";
+static char kil_color[] = "41";
+static char kil_cur_color[] = "101";
+static char mov_color[] = "44";
+static char mov_cur_color[] = "46";
 
 static int args_read (int argc, char *argv[])
 {
@@ -44,21 +43,20 @@ static int editor_uibg_draw (void)
 static char *line_color (int y)
 {
 	int addr = y + (Buf ? Buf->scroll : 0);
-	if (cmd.mc && addr == cmd.ac)
+
+	if (cmd.edit & EDIT_DST && addr == cmd.ac)
 		return dst_color;
 
+	int is_cursor = y == T.y;
 	char *range_color = NULL;
 	if (cmd.edit & EDIT_KIL)
-		range_color = kil_color;
+		range_color = is_cursor ? kil_cur_color : kil_color;
 	else if (cmd.edit & EDIT_SRC)
-		range_color = mov_color;
+		range_color = is_cursor ? mov_cur_color : mov_color;
 	else if (cmd.edit & EDIT_MOV)
 		range_color = mov_color;
 
-	int is_cursor = y == T.y;
 	if (range_color) {
-		if (is_cursor)
-			range_color = mov_cur_color;
 		if (cmd.mb && (addr >= cmd.aa && addr <= cmd.ab))
 			return range_color;
 		if (addr == cmd.aa)
@@ -173,8 +171,8 @@ main_loop:
 	int result = cmd.Do ? cmd.Do(&cmd) : 0;
 	if (result == CMD_QUIT)
 		goto shutdown;
+	cmd_reset(&cmd);
 	cluf |= UPDATE_CMD;
-	memset(&cmd, 0, sizeof(cmd));
 	goto main_loop;
 shutdown:
 	bufl_close(BufL);

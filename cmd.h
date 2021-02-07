@@ -24,7 +24,8 @@ mov	0	0	0	0	0	1	1
 enum cmd_editflags {
 	EDIT_KIL = 1 << 0,
 	EDIT_SRC = 1 << 1,
-	EDIT_MOV = 1 << 2,
+	EDIT_DST = 1 << 2,
+	EDIT_MOV = 1 << 3,
 };
 
 struct command {
@@ -35,6 +36,7 @@ struct command {
 	int (*Do)(struct command *this);
 };
 
+int cmd_reset (struct command *this);
 int cmd_update (struct command *this);
 
 extern char cmdline[256];

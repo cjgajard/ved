@@ -32,24 +32,51 @@ int buf_scroll (struct buf *this, int addr)
 {
 	if (!this)
 		return 1;
-	int last;
-	this->scroll = addr;
-
-	if (this->scroll < 0) {
+	if (addr < 0) {
 		this->scroll = 0;
 		return 0;
 	}
-
-	last = buf_lastline(this) - T.lines;
-	if (this->scroll > last) {
+	int last = buf_lastline(this) - T.lines;
+	if (addr > last)
 		this->scroll = last;
-	}
+	this->scroll = addr;
 	return 0;
 }
 
 int buf_addr (struct buf *this)
 {
 	return (this ? this->scroll : 0) + T.y;
+}
+
+enum addr {
+	ADDR_CURRENT,
+	ADDR_START,
+	ADDR_END,
+	ADDR_NEXT,
+};
+
+int buf_at (struct buf *this, enum addr key)
+{
+	switch (key) {
+	case ADDR_CURRENT:
+		return buf_addr(this);
+	case ADDR_END:
+		return buf_lastline(this);
+	case ADDR_NEXT:
+		return buf_addr(this) + 1;
+	case ADDR_START:
+	default:
+		return 0;
+	}
+}
+
+static int addrdefault (int match, int *addr, enum addr def)
+{
+	if (match)
+		return 1;
+	if (addr)
+		*addr = buf_at(Buf, def);
+	return 0;
 }
 
 static int parseaddr (int *addr) {
@@ -104,9 +131,9 @@ static int parseaddr (int *addr) {
 			}
 			match += 1;
 		}
-		clri--;
 		break;
 	}
+	clri--;
 	return match;
 }
 
@@ -165,15 +192,16 @@ static int cliptext (int ya, int yb, int delete)
 	if (!Buf)
 		return 1;
 
-	size_t start = 0;
-	size_t len = buf_cliplen(ya, yb, &start);
+	size_t aa = buf_pos(Buf, ya);
+	size_t ab = buf_pos(Buf, yb);
+	size_t len = ab - aa;
 
-	char *target = Buf->txt + start;
+	char *target = Buf->txt + aa;
 	memcpy(cmdclip, target, len);
 	cmdclip[len] = 0;
 
 	if (delete) {
-		memmove(target, target + len, Buf->len - start -len);
+		memmove(target, target + len, Buf->len - aa - len);
 		Buf->len -= len;
 		Buf->txt[Buf->len] = 0;
 	}
@@ -182,7 +210,7 @@ static int cliptext (int ya, int yb, int delete)
 	return 0;
 }
 
-static int insert (int ma, int aa, int append)
+static int insert (int addr, int append)
 {
 	if (!Buf)
 		return 1;
@@ -195,9 +223,8 @@ static int insert (int ma, int aa, int append)
 		return 2;
 	}
 
-	int x = 0;
-	int y = (ma ? aa : buf_addr(Buf)) + append;
-	int pos = buf_pos(Buf, x, y);
+	int y = addr + append;
+	int pos = buf_pos(Buf, y);
 
 	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
 	memcpy(Buf->txt + pos, cmdstr, cmdlen);
@@ -211,13 +238,13 @@ static int insert (int ma, int aa, int append)
 	return 0;
 }
 
-static int scroll (int ma, int aa, int back)
+static int scroll (int ma, int ya, int back)
 {
 	if (!Buf)
 		return 1;
 	if (ma) {
-		buf_scroll(Buf, aa);
-		moveto(aa);
+		buf_scroll(Buf, ya);
+		moveto(ya);
 	}
 	else {
 		int y = (back ? -1 : 1) * T.lines;
@@ -257,8 +284,8 @@ static int cmd_do_buf (struct command *this)
 
 static int cmd_do_delete (struct command *this)
 {
-	int ya = this->ma ? this->aa : buf_addr(Buf);
-	int yb = (this->mb ? this->ab : ya) + 1;
+	int ya = this->aa;
+	int yb = this->ab + 1;
 	if (ya >= yb)
 		return 1;
 	if (cliptext(ya, yb, 1))
@@ -297,12 +324,12 @@ static int cmd_do_fs (struct command *this)
 
 static int cmd_do_append (struct command *this)
 {
-	return insert(this->ma, this->aa, 1);
+	return insert(this->aa, 1);
 }
 
 static int cmd_do_insert (struct command *this)
 {
-	return insert(this->ma, this->aa, 0);
+	return insert(this->aa, 0);
 }
 
 static int cmd_do_jump (struct command *this)
@@ -362,8 +389,8 @@ static int cmd_do_paste (struct command *this)
 		return 2;
 	}
 
-	int y = (this->mc ? this->ac : buf_addr(Buf)) + 1;
-	int pos = buf_pos(Buf, 0, y);
+	int y = this->ac + 1;
+	int pos = buf_pos(Buf, y);
 
 	memmove(Buf->txt + pos + len, Buf->txt + pos, Buf->len - pos);
 	memcpy(Buf->txt + pos, cmdclip, len);
@@ -398,8 +425,8 @@ static int cmd_do_transfer (struct command *this)
 
 static int cmd_do_yank (struct command *this)
 {
-	int ya = this->ma ? this->aa : buf_addr(Buf);
-	int yb = (this->mb ? this->ab : ya) + 1;
+	int ya = this->aa;
+	int yb = this->ab + 1;
 	if (ya >= yb)
 		return 1;
 	if (cliptext(ya, yb, 0))
@@ -441,6 +468,15 @@ int cmdline_update (char c)
 	return 0;
 }
 
+int cmd_reset (struct command *this)
+{
+	this->ma = 0;
+	this->mb = 0;
+	this->mc = 0;
+	this->edit = 0;
+	return 0;
+}
+
 int cmd_update (struct command *cmd)
 {
 	clri = 0;
@@ -452,6 +488,10 @@ int cmd_update (struct command *cmd)
 	cmd->edit = 0;
 
 	switch (cmdline[clri++]) {
+	case '\0':
+		cmd->edit = cmd->ma ? EDIT_MOV : 0;
+		cmd->Do = &cmd_do_jump;
+		break;
 	case 'F':
 		cmd->Do = &cmd_do_fs;
 		break;
@@ -462,18 +502,25 @@ int cmd_update (struct command *cmd)
 		cmd->Do = &cmd_do_scrollback;
 		break;
 	case 'a':
+		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
 		cmd->Do = &cmd_do_append;
 		break;
-	case 'i':
-		cmd->Do = &cmd_do_insert;
-		break;
 	case 'd':
+		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(cmd->mb, &cmd->ab, ADDR_CURRENT);
 		cmd->edit = EDIT_KIL | EDIT_SRC;
 		cmd->Do = &cmd_do_delete;
 		break;
+	case 'i':
+		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
+		cmd->Do = &cmd_do_insert;
+		break;
 	case 'm':
-		cmd->edit = EDIT_KIL | EDIT_SRC;
 		cmd->mc = parseaddr(&cmd->ac);
+		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(cmd->mb, &cmd->ab, ADDR_CURRENT);
+		addrdefault(cmd->mc, &cmd->ac, ADDR_CURRENT);
+		cmd->edit = EDIT_KIL | EDIT_SRC | EDIT_DST;
 		cmd->Do = &cmd_do_move;
 		break;
 	case 'p':
@@ -483,26 +530,31 @@ int cmd_update (struct command *cmd)
 		cmd->Do = &cmd_do_quit;
 		break;
 	case 't':
-		cmd->edit = EDIT_SRC;
 		cmd->mc = parseaddr(&cmd->ac);
+		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(cmd->mb, &cmd->ab, ADDR_CURRENT);
+		addrdefault(cmd->mc, &cmd->ac, ADDR_CURRENT);
+		cmd->edit = EDIT_SRC | EDIT_DST;
 		cmd->Do = &cmd_do_transfer;
 		break;
 	case 'x':
 		cmd->mc = cmd->ma;
 		cmd->ac = cmd->aa;
+		cmd->ma = 0;
+		cmd->aa = 0;
+		addrdefault(cmd->mc, &cmd->ac, ADDR_CURRENT);
+		cmd->edit = EDIT_DST;
 		cmd->Do = &cmd_do_paste;
 		break;
 	case 'y':
+		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(cmd->mb, &cmd->ab, ADDR_CURRENT);
 		cmd->edit = EDIT_SRC;
 		cmd->Do = &cmd_do_yank;
 		break;
 	case 'z':
 		cmd->edit = EDIT_MOV;
 		cmd->Do = &cmd_do_scroll;
-		break;
-	case '\0':
-		cmd->edit = cmd->ma ? EDIT_MOV : 0;
-		cmd->Do = &cmd_do_jump;
 		break;
 	default:
 		cmd->Do = NULL;
