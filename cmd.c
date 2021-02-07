@@ -49,10 +49,11 @@ int buf_addr (struct buf *this)
 }
 
 enum addr {
-	ADDR_CURRENT,
-	ADDR_START,
-	ADDR_END,
-	ADDR_NEXT,
+	ADDR_CURRENT = '.',
+	ADDR_START = '0',
+	ADDR_END = '$',
+	ADDR_NEXT = '+',
+	ADDR_PREV = '-',
 };
 
 int buf_at (struct buf *this, enum addr key)
@@ -79,61 +80,48 @@ static int addrdefault (int match, int *addr, enum addr def)
 	return 0;
 }
 
-static int parseaddr (int *addr) {
+static int parseaddr (int *addr_ptr) {
 	char byte;
-	int rel = 0;
+	int addr = 0;
 	int match = 0;
-	*addr = 0;
+	int rel = 0;
 
-	while ((byte = cmdline[clri++])) {
-		if (byte == '$') {
-			if (!Buf)
-				return 0;
-			*addr = buf_lastline(Buf);
-			match += 1;
-			continue;
-		}
-		if (byte == '.') {
-			*addr = buf_addr(Buf);
-			match += 1;
-			continue;
-		}
-		if (byte == '-' || byte == '+') {
-			if (!Buf)
-				return 0;
-			if (!match)
-				*addr = buf_addr(Buf);
-			match += 1;
-			rel = 1;
-		}
-		if (rel || isdigit(byte)) {
-			char memo[16];
-			int i = 0;
-			do {
-				memo[i++] = byte;
-				byte = cmdline[clri++];
-			}
-			while (isdigit(byte));
-			memo[i] = 0;
+	if (!Buf)
+		return 0;
 
-			if (i == 1 && memo[0] == '+') {
-				*addr += 1;
-			}
-			else if (i == 1 && memo[0] == '-') {
-				*addr -= 1;
-			}
-			else if (rel) {
-				*addr += atoi(memo);
-			}
-			else {
-				int n = atoi(memo);
-				*addr += n >= 0 ? n - 1 : n;
-			}
-			match += 1;
-		}
-		break;
+	if (!(byte = cmdline[clri]))
+		return match;
+
+	if (byte == ADDR_CURRENT || byte == ADDR_END) {
+		addr = buf_at(Buf, byte);
+		match += 1;
+		byte = cmdline[clri++];
 	}
-	clri--;
+
+	if (byte == ADDR_NEXT || byte == ADDR_PREV) {
+		if (!match)
+			addr = buf_at(Buf, ADDR_CURRENT);
+		if (byte == ADDR_NEXT)
+			rel = 1;
+		if (byte == ADDR_PREV)
+			rel = -1;
+		match += 1;
+		byte = cmdline[clri++];
+	}
+
+	if (isdigit(byte) || rel) {
+		char memo[16];
+		int i = 0;
+		while (isdigit(byte)) {
+			memo[i++] = byte;
+			byte = cmdline[++clri];
+		}
+		memo[i] = 0;
+		addr += i ? atoi(memo) - (rel >= 0 ? 1 : 0) : rel;
+		match += 1;
+	}
+	if (addr_ptr)
+		*addr_ptr = addr;
 	return match;
 }
 
@@ -482,9 +470,8 @@ int cmd_update (struct command *cmd)
 	clri = 0;
 	cmd->ma = parseaddr(&cmd->aa);
 	cmd->ma += parsecomma(cmd->ma ? NULL : &cmd->aa);
-	cmd->mb = parseaddr(&cmd->ab);
+	cmd->mb = cmd->ma ? parseaddr(&cmd->ab) : 0;
 	cmd->mc = 0;
-	cmd->ac = 0;
 	cmd->edit = 0;
 
 	switch (cmdline[clri++]) {
