@@ -120,6 +120,7 @@ static int parseaddr (int *addr_ptr) {
 		addr += i ? atoi(memo) - (rel >= 0 ? 1 : 0) : rel;
 		match += 1;
 	}
+
 	if (addr_ptr)
 		*addr_ptr = addr;
 	return match;
@@ -470,7 +471,11 @@ int cmd_update (struct command *cmd)
 	clri = 0;
 	cmd->ma = parseaddr(&cmd->aa);
 	cmd->ma += parsecomma(cmd->ma ? NULL : &cmd->aa);
-	cmd->mb = cmd->ma ? parseaddr(&cmd->ab) : 0;
+	cmd->mb = parseaddr(&cmd->ab);
+	if (cmd->ma && !cmd->mb) {
+		cmd->mb = cmd->ma;
+		cmd->ab = cmd->aa;
+	}
 	cmd->mc = 0;
 	cmd->edit = 0;
 
