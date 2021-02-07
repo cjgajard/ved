@@ -3,7 +3,6 @@
 #include <stddef.h>
 
 #define CMD_QUIT -1
-#define CTRL(x) ((x) & 0x1f)
 
 enum cmd_uflags {
 	UPDATE_ECHO = 1 << 0,
@@ -36,13 +35,12 @@ struct command {
 	int (*Do)(struct command *this);
 };
 
+int cmd_update (struct command *this);
+
 extern char cmdline[256];
 extern char cmdmsg[256];
-extern size_t clwi; /* command line write index */
-extern size_t clri; /* command line read index */
 extern unsigned int cluf; /* command line update flags */
 
-int cmdline_read (struct command *cmd);
 int cmdline_reset (void);
 int cmdline_update (char c);
 #endif

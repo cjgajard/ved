@@ -9,9 +9,9 @@
 char cmdline[256] = {0};
 char cmdmsg[256] = {0};
 char cmdclip[BUFSIZ];
-size_t clri = 0;
-size_t clwi = 0;
 unsigned int cluf = 0;
+static size_t clwi = 0; /* command line write index */
+static size_t clri = 0; /* command line read index */
 
 static int cmd_do_append (struct command *this);
 static int cmd_do_buf (struct command *this);
@@ -425,19 +425,23 @@ int cmdline_reset (void)
 
 int cmdline_update (char c)
 {
-	if (c == ASCII_DEL || c == ASCII_BS) {
+	if (c == ASCII_CR || c == ASCII_LF)
+		return 1;
+
+	if (c == ASCII_BS || c == ASCII_DEL) {
 		if (clwi > 0)
 			cmdline[--clwi] = 0;
 		return 0;
 	}
+
 	if (clwi >= sizeof(cmdline) - 1)
-		return 1;
-	cmdline[clwi++] = c == CTRL('m') ? 0 : c;
+		return 0;
+	cmdline[clwi++] = c;
 	cmdline[clwi] = 0;
 	return 0;
 }
 
-int cmdline_read (struct command *cmd)
+int cmd_update (struct command *cmd)
 {
 	clri = 0;
 	cmd->ma = parseaddr(&cmd->aa);

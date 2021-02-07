@@ -1,8 +1,10 @@
 #ifndef ASCII_h
 #define ASCII_h 1
 #include <bits/types/FILE.h>
-#define ASCII_DEL 0x7f
-#define ASCII_BS 0x08
+#define ASCII_BS  0x08
+#define ASCII_DEL 0x7F
+#define ASCII_LF  0x0A
+#define ASCII_CR  0x0D
 
 struct ascii {
 	unsigned char code;

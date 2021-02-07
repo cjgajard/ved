@@ -166,15 +166,15 @@ main_loop:
 		error = 1;
 		goto shutdown;
 	}
-	cmdline_update(c);
-	cmdline_read(&cmd);
-	if (c == CTRL('m')) {
-		int result = cmd.Do ? cmd.Do(&cmd) : 0;
-		if (result == CMD_QUIT)
-			goto shutdown;
-		memset(&cmd, 0, sizeof(cmd));
-		cluf |= UPDATE_CMD;
+	if (!cmdline_update(c)) {
+		cmd_update(&cmd);
+		goto main_loop;
 	}
+	int result = cmd.Do ? cmd.Do(&cmd) : 0;
+	if (result == CMD_QUIT)
+		goto shutdown;
+	cluf |= UPDATE_CMD;
+	memset(&cmd, 0, sizeof(cmd));
 	goto main_loop;
 shutdown:
 	bufl_close(BufL);
