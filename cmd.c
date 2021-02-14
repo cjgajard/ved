@@ -80,44 +80,44 @@ static int addrdefault (int match, int *addr, enum addr def)
 	return 0;
 }
 
-static int parseaddr (int *addr_ptr) {
+static int parseaddr (int *ref, int *addr_ptr) {
 	char byte;
 	int addr = 0;
 	int match = 0;
-	int rel = 0;
+	int is_rel = 0;
 
 	if (!Buf)
 		return 0;
-
 	if (!(byte = cmdline[clri]))
-		return match;
-
+		return 0;
+	
 	if (byte == ADDR_CURRENT || byte == ADDR_END) {
 		addr = buf_at(Buf, byte);
 		match += 1;
-		byte = cmdline[clri++];
+		byte = cmdline[++clri];
 	}
 
+	char memo[16];
+	int i = 0;
 	if (byte == ADDR_NEXT || byte == ADDR_PREV) {
 		if (!match)
-			addr = buf_at(Buf, ADDR_CURRENT);
-		if (byte == ADDR_NEXT)
-			rel = 1;
-		if (byte == ADDR_PREV)
-			rel = -1;
+			addr = ref ? *ref : buf_at(Buf, ADDR_CURRENT);
 		match += 1;
-		byte = cmdline[clri++];
+		is_rel = 1;
+		memo[i++] = byte;
+		byte = cmdline[++clri];
 	}
 
-	if (isdigit(byte) || rel) {
-		char memo[16];
-		int i = 0;
-		while (isdigit(byte)) {
-			memo[i++] = byte;
-			byte = cmdline[++clri];
-		}
-		memo[i] = 0;
-		addr += i ? atoi(memo) - (rel >= 0 ? 1 : 0) : rel;
+	while (isdigit(byte)) {
+		memo[i++] = byte;
+		byte = cmdline[++clri];
+	}
+	if (is_rel && i == 1)
+		memo[i++] = '1';
+	memo[i] = 0;
+
+	if (i) {
+		addr += atoi(memo) - !is_rel;
 		match += 1;
 	}
 
@@ -131,15 +131,13 @@ static int parsecomma (int *aa)
 	switch (cmdline[clri]) {
 	case ',':
 		clri++;
-		if (!aa)
-			return 0;
-		*aa = 0; /* address 0 is line 1 */
+		if (aa)
+			*aa = buf_at(Buf, ADDR_START);
 		return 1;
 	case ';':
 		clri++;
-		if (!aa)
-			return 0;
-		*aa = buf_addr(Buf);
+		if (aa)
+			*aa = buf_at(Buf, ADDR_CURRENT);
 		return 1;
 	default:
 		return 0;
@@ -468,22 +466,24 @@ int cmdline_update (char c)
 
 int cmd_reset (struct command *this)
 {
+	clri = 0;
 	this->edit = 0;
 	return 0;
 }
 
 int cmd_update (struct command *cmd)
 {
-	clri = 0;
-	int ma, mb, mc = 0;
-	ma = parseaddr(&cmd->aa);
-	ma += parsecomma(ma ? NULL : &cmd->aa);
-	mb = parseaddr(&cmd->ab);
-	if (ma && !mb) {
-		mb = ma;
+	int ma = 0, mb = 0, mc = 0;
+	cmd_reset(cmd);
+	ma = parseaddr(NULL, &cmd->aa);
+	if (parsecomma(ma ? NULL : &cmd->aa)) {
+		ma++;
+		mb = parseaddr(&cmd->aa, &cmd->ab);
+		addrdefault(mb, &cmd->ab, ADDR_END);
+	}
+	else {
 		cmd->ab = cmd->aa;
 	}
-	cmd->edit = 0;
 
 	switch (cmdline[clri++]) {
 	case '\0':
@@ -514,7 +514,7 @@ int cmd_update (struct command *cmd)
 		cmd->Do = &cmd_do_insert;
 		break;
 	case 'm':
-		mc = parseaddr(&cmd->ac);
+		mc = parseaddr(NULL, &cmd->ac);
 		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
 		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
 		addrdefault(mc, &cmd->ac, ADDR_CURRENT);
@@ -528,7 +528,7 @@ int cmd_update (struct command *cmd)
 		cmd->Do = &cmd_do_quit;
 		break;
 	case 't':
-		mc = parseaddr(&cmd->ac);
+		mc = parseaddr(NULL, &cmd->ac);
 		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
 		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
 		addrdefault(mc, &cmd->ac, ADDR_CURRENT);
