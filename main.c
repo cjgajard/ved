@@ -56,12 +56,8 @@ static char *line_color (int y)
 	else if (cmd.edit & EDIT_MOV)
 		range_color = mov_color;
 
-	if (range_color) {
-		if (cmd.mb && (addr >= cmd.aa && addr <= cmd.ab))
-			return range_color;
-		if (addr == cmd.aa)
-			return range_color;
-	}
+	if (range_color && (addr >= cmd.aa && addr <= cmd.ab))
+		return range_color;
 	if (is_cursor)
 		return cur_color;
 	return NULL;

@@ -16,7 +16,7 @@ enum cmd_uflags {
 	y	t	d	m	x	z	null
 del	0	0	1	1	0	0	0
 src	1	1	1	1	0	0	0
-->mc	0	1	0	1	1	0	0
+dst	0	1	0	1	1	0	0
 mov	0	0	0	0	0	1	1
 	b_	bg	r_	rg	_g	b	b
 */
@@ -29,9 +29,9 @@ enum cmd_editflags {
 };
 
 struct command {
-	int ma, aa;
-	int mb, ab;
-	int mc, ac;
+	int aa;
+	int ab;
+	int ac;
 	enum cmd_editflags edit;
 	int (*Do)(struct command *this);
 };

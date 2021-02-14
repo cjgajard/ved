@@ -227,18 +227,22 @@ static int insert (int addr, int append)
 	return 0;
 }
 
-static int scroll (int ma, int ya, int back)
+static int scroll_to (int ya)
 {
 	if (!Buf)
 		return 1;
-	if (ma) {
-		buf_scroll(Buf, ya);
-		moveto(ya);
-	}
-	else {
-		int y = (back ? -1 : 1) * T.lines;
-		buf_scroll(Buf, Buf->scroll + y);
-	}
+	buf_scroll(Buf, ya);
+	moveto(ya);
+	cluf |= UPDATE_BUF;
+	return 0;
+}
+
+static int scroll_page (int back)
+{
+	if (!Buf)
+		return 1;
+	int y = (back ? -1 : 1) * T.lines;
+	buf_scroll(Buf, Buf->scroll + y);
 	cluf |= UPDATE_BUF;
 	return 0;
 }
@@ -323,10 +327,8 @@ static int cmd_do_insert (struct command *this)
 
 static int cmd_do_jump (struct command *this)
 {
-	if (!this->ma)
-		return 1;
 	if (!Buf)
-		return 2;
+		return 1;
 	buf_scroll(Buf, this->aa - T.lines / 2);
 	term_set_x(0);
 	term_set_y(this->aa - Buf->scroll);
@@ -393,14 +395,21 @@ static int cmd_do_paste (struct command *this)
 	return 0;
 }
 
+static int cmd_do_scrollto (struct command *this)
+{
+	return scroll_to(this->aa);
+}
+
 static int cmd_do_scroll (struct command *this)
 {
-	return scroll(this->ma, this->aa, 0);
+	(void)this;
+	return scroll_page(0);
 }
 
 static int cmd_do_scrollback (struct command *this)
 {
-	return scroll(this->ma, this->aa, 1);
+	(void)this;
+	return scroll_page(1);
 }
 
 static int cmd_do_transfer (struct command *this)
@@ -459,9 +468,6 @@ int cmdline_update (char c)
 
 int cmd_reset (struct command *this)
 {
-	this->ma = 0;
-	this->mb = 0;
-	this->mc = 0;
 	this->edit = 0;
 	return 0;
 }
@@ -469,19 +475,19 @@ int cmd_reset (struct command *this)
 int cmd_update (struct command *cmd)
 {
 	clri = 0;
-	cmd->ma = parseaddr(&cmd->aa);
-	cmd->ma += parsecomma(cmd->ma ? NULL : &cmd->aa);
-	cmd->mb = parseaddr(&cmd->ab);
-	if (cmd->ma && !cmd->mb) {
-		cmd->mb = cmd->ma;
+	int ma, mb, mc = 0;
+	ma = parseaddr(&cmd->aa);
+	ma += parsecomma(ma ? NULL : &cmd->aa);
+	mb = parseaddr(&cmd->ab);
+	if (ma && !mb) {
+		mb = ma;
 		cmd->ab = cmd->aa;
 	}
-	cmd->mc = 0;
 	cmd->edit = 0;
 
 	switch (cmdline[clri++]) {
 	case '\0':
-		cmd->edit = cmd->ma ? EDIT_MOV : 0;
+		cmd->edit = ma ? EDIT_MOV : 0;
 		cmd->Do = &cmd_do_jump;
 		break;
 	case 'F':
@@ -494,24 +500,24 @@ int cmd_update (struct command *cmd)
 		cmd->Do = &cmd_do_scrollback;
 		break;
 	case 'a':
-		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
 		cmd->Do = &cmd_do_append;
 		break;
 	case 'd':
-		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
-		addrdefault(cmd->mb, &cmd->ab, ADDR_CURRENT);
+		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
 		cmd->edit = EDIT_KIL | EDIT_SRC;
 		cmd->Do = &cmd_do_delete;
 		break;
 	case 'i':
-		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
 		cmd->Do = &cmd_do_insert;
 		break;
 	case 'm':
-		cmd->mc = parseaddr(&cmd->ac);
-		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
-		addrdefault(cmd->mb, &cmd->ab, ADDR_CURRENT);
-		addrdefault(cmd->mc, &cmd->ac, ADDR_CURRENT);
+		mc = parseaddr(&cmd->ac);
+		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
+		addrdefault(mc, &cmd->ac, ADDR_CURRENT);
 		cmd->edit = EDIT_KIL | EDIT_SRC | EDIT_DST;
 		cmd->Do = &cmd_do_move;
 		break;
@@ -522,31 +528,31 @@ int cmd_update (struct command *cmd)
 		cmd->Do = &cmd_do_quit;
 		break;
 	case 't':
-		cmd->mc = parseaddr(&cmd->ac);
-		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
-		addrdefault(cmd->mb, &cmd->ab, ADDR_CURRENT);
-		addrdefault(cmd->mc, &cmd->ac, ADDR_CURRENT);
+		mc = parseaddr(&cmd->ac);
+		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
+		addrdefault(mc, &cmd->ac, ADDR_CURRENT);
 		cmd->edit = EDIT_SRC | EDIT_DST;
 		cmd->Do = &cmd_do_transfer;
 		break;
 	case 'x':
-		cmd->mc = cmd->ma;
+		mc = ma;
 		cmd->ac = cmd->aa;
-		cmd->ma = 0;
+		ma = 0;
 		cmd->aa = 0;
-		addrdefault(cmd->mc, &cmd->ac, ADDR_CURRENT);
+		addrdefault(mc, &cmd->ac, ADDR_CURRENT);
 		cmd->edit = EDIT_DST;
 		cmd->Do = &cmd_do_paste;
 		break;
 	case 'y':
-		addrdefault(cmd->ma, &cmd->aa, ADDR_CURRENT);
-		addrdefault(cmd->mb, &cmd->ab, ADDR_CURRENT);
+		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
 		cmd->edit = EDIT_SRC;
 		cmd->Do = &cmd_do_yank;
 		break;
 	case 'z':
 		cmd->edit = EDIT_MOV;
-		cmd->Do = &cmd_do_scroll;
+		cmd->Do = ma ? &cmd_do_scrollto : &cmd_do_scroll;
 		break;
 	default:
 		cmd->Do = NULL;
