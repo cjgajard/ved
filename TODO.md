@@ -1,0 +1,76 @@
+# TODO
+- [x] Parse default addresses in `cmd_read`
+- [x] Red, green, yellow and blue range cursors
+    - [x] Weird-ass bug keeps dst after delete/move on big number
+    - [x] `x` on cursor should be green
+- [x] Improve parseaddr
+    - [x] 15m
+    - [x] 20\<CR\>15m40
+    - [x] Move matches out of cmd
+- [x] Differentiate + and .+ <!-- ed extension -->
+    - [x] Make @1  `10,+2`  be equivalent to `10,12` <!-- ed ? -->
+    - [x] Make @1  `10,.+2` be ?
+    - [x] Make @10 `10,+2`  be equivalent to `10,12`
+    - [x] Make @10 `10,.+2` be equivalent to `10,12`
+    - [x] Make @20 `10,+2`  be equivalent to `10,12` <!-- ed 10,22 -->
+    - [x] Make @20 `10,.+2` be equivalent to `10,22`
+- [x] Clean address parsing
+- [ ] Draw buffer line by line
+    - [ ] Redraw single target line after command
+    - [ ] Allow range draw/redraw
+- [ ] Unify `y`, `addr`, `pos` notation
+- [ ] Add `y-cursor` and `position-cursor` to buffer
+- [ ] Add tests kappa
+- [ ] Use `window`s
+- [ ] Horizontal movement
+- [ ] Add preview text with `dst_color` before sending (`x`, `m` or `t`)
+- [ ] Add preview "screen" for destinations outside page (scroll + height)
+- [ ] z vs Z vs G vs 2z vs -2Z
+
+Addresses
+- [x] `.` (Current)
+- [x] `$` (Last)
+- [x] `N` (Nth)
+- [x] `+N` (Relative)
+- [x] `-N` (Relative)
+- [x] `.+N` (Offset)
+- [x] `.-N` (Offset)
+- [x] `,N` (1,N)
+- [x] `,` (1,$)
+- [x] `;N` (.,N)
+- [x] `;` (.,$)
+- [ ] `'a`
+- [ ] `/RE/` <!-- i'd like to use a configurable fork for this -->
+- [ ] `?RE?`
+
+File
+- [x] `e FILE`
+- [x] `f`
+- [ ] `f FILE` <!-- renames buffer, not file -->
+- [x] `w`
+- [x] `w FILE`
+- [ ] `(1,$\)w FILE`
+- [ ] `wq`
+
+Command
+- [x] `(.)a`
+- [ ] `(.)a` <!-- ed flavour -->
+- [ ] `(.,.)c`
+- [x] `(.,.)d`
+- [ ] `(1,$)g/RE/CMD`
+- [ ] `h`
+- [x] `(.)i`
+- [ ] `(.)i` <!-- ed flavour -->
+- [ ] `(.,.+1)j`
+- [ ] `(.)kx`
+- [x] `(.,.)m(.)`
+- [ ] `($)r`
+- [ ] `(.,.)s/RE/STR`
+- [x] `(.,.)t(.)`
+- [ ] `u`
+- [ ] `(1,$)v/RE/CMD`
+- [x] `(.)x`
+- [x] `(.,.)y`
+- [x] `(.)z` <!-- ved flavour -->
+- [ ] `!CMD`
+- [ ] `($)=`
