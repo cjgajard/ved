@@ -27,8 +27,8 @@ static int tcattr_raw (void)
 	attr.c_iflag &= ~(ICRNL | INPCK | ISTRIP | IXON);
 	attr.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 	attr.c_oflag &= ~(OPOST);
-	// attr.c_cc[VMIN] = 0;
-	// attr.c_cc[VTIME] = 1;
+	/* attr.c_cc[VMIN] = 0; */
+	/* attr.c_cc[VTIME] = 1; */
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) == -1)
 		return 1;
 	return 0;
@@ -42,13 +42,13 @@ int term_commit (void)
 int term_move_cursor (void)
 {
 	char buf[32];
-	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", T.y + 1, T.x + 1 + 8);
+	sprintf(buf, "\x1b[%d;%dH", T.y + 1, T.x + 1 + 8);
+	buf[31] = 0;
 	return write(STDOUT_FILENO, buf, strlen(buf));
 }
 
 int term_move_topleft (void)
 {
-	// return write(STDOUT_FILENO, "\x1b[H", 3);
 	return printf("\x1b[H");
 }
 
@@ -133,15 +133,16 @@ int termcfg_init (void)
 
 int termcfg_close (void)
 {
+	int err;
+	int y;
 	term_move_topleft();
-	for (int y = 0; y < T.lines + 2; y++) {
+	for (y = 0; y < T.lines + 2; y++) {
 		printf("\x1b[K\x1b[B");
 	}
 	printf("\x1b[?34h\x1b[?25h");
 	term_move_topleft();
 	term_commit();
 
-	int err;
 	if ((err = tcattr_restore())) {
 		perror("tcattr_restore");
 		return err;

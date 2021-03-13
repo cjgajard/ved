@@ -28,22 +28,22 @@ static int cmd_do_transfer (struct command *this);
 static int cmd_do_yank (struct command *this);
 static int cmd_do_quit (struct command *this);
 
-int buf_scroll (struct buf *this, int addr)
+int buf_scroll (struct buf *this, int y)
 {
 	if (!this)
 		return 1;
-	if (addr < 0) {
+	if (y < 0) {
 		this->scroll = 0;
 		return 0;
 	}
 	int last = buf_lastline(this) - T.lines;
-	if (addr > last)
+	if (y > last)
 		this->scroll = last;
-	this->scroll = addr;
+	this->scroll = y;
 	return 0;
 }
 
-int buf_addr (struct buf *this)
+int buf_y (struct buf *this)
 {
 	return (this ? this->scroll : 0) + T.y;
 }
@@ -60,29 +60,29 @@ int buf_at (struct buf *this, enum addr key)
 {
 	switch (key) {
 	case ADDR_CURRENT:
-		return buf_addr(this);
+		return buf_y(this);
 	case ADDR_END:
 		return buf_lastline(this);
 	case ADDR_NEXT:
-		return buf_addr(this) + 1;
+		return buf_y(this) + 1;
 	case ADDR_START:
 	default:
 		return 0;
 	}
 }
 
-static int addrdefault (int match, int *addr, enum addr def)
+static int addrdefault (int match, int *y, enum addr def)
 {
 	if (match)
 		return 1;
-	if (addr)
-		*addr = buf_at(Buf, def);
+	if (y)
+		*y = buf_at(Buf, def);
 	return 0;
 }
 
-static int parseaddr (int *ref, int *addr_ptr) {
+static int parseaddr (int *ref, int *y_ptr) {
 	char byte;
-	int addr = 0;
+	int y = 0;
 	int match = 0;
 	int is_rel = 0;
 
@@ -92,7 +92,7 @@ static int parseaddr (int *ref, int *addr_ptr) {
 		return 0;
 	
 	if (byte == ADDR_CURRENT || byte == ADDR_END) {
-		addr = buf_at(Buf, byte);
+		y = buf_at(Buf, byte);
 		match += 1;
 		byte = cmdline[++clri];
 	}
@@ -101,7 +101,7 @@ static int parseaddr (int *ref, int *addr_ptr) {
 	int i = 0;
 	if (byte == ADDR_NEXT || byte == ADDR_PREV) {
 		if (!match)
-			addr = ref ? *ref : buf_at(Buf, ADDR_CURRENT);
+			y = ref ? *ref : buf_at(Buf, ADDR_CURRENT);
 		match += 1;
 		is_rel = 1;
 		memo[i++] = byte;
@@ -117,12 +117,12 @@ static int parseaddr (int *ref, int *addr_ptr) {
 	memo[i] = 0;
 
 	if (i) {
-		addr += atoi(memo) - !is_rel;
+		y += atoi(memo) - !is_rel;
 		match += 1;
 	}
 
-	if (addr_ptr)
-		*addr_ptr = addr;
+	if (y_ptr)
+		*y_ptr = y;
 	return match;
 }
 
@@ -197,7 +197,7 @@ static int cliptext (int ya, int yb, int delete)
 	return 0;
 }
 
-static int insert (int addr, int append)
+static int insert (int y)
 {
 	if (!Buf)
 		return 1;
@@ -206,11 +206,10 @@ static int insert (int addr, int append)
 	size_t cmdlen = strlen(cmdstr);
 
 	if (Buf->len + cmdlen + 2 >= Buf->siz) {
-		fprintf(stderr, "txt should be resized\n"); // FIXME
+		fprintf(stderr, "txt should be resized\n"); /* FIXME */
 		return 2;
 	}
 
-	int y = addr + append;
 	int pos = buf_pos(Buf, y);
 
 	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
@@ -275,8 +274,8 @@ static int cmd_do_buf (struct command *this)
 
 static int cmd_do_delete (struct command *this)
 {
-	int ya = this->aa;
-	int yb = this->ab + 1;
+	int ya = this->ya;
+	int yb = this->yb + 1;
 	if (ya >= yb)
 		return 1;
 	if (cliptext(ya, yb, 1))
@@ -315,21 +314,21 @@ static int cmd_do_fs (struct command *this)
 
 static int cmd_do_append (struct command *this)
 {
-	return insert(this->aa, 1);
+	return insert(this->ya + 1);
 }
 
 static int cmd_do_insert (struct command *this)
 {
-	return insert(this->aa, 0);
+	return insert(this->ya);
 }
 
 static int cmd_do_jump (struct command *this)
 {
 	if (!Buf)
 		return 1;
-	buf_scroll(Buf, this->aa - T.lines / 2);
+	buf_scroll(Buf, this->ya - T.lines / 2);
 	term_set_x(0);
-	term_set_y(this->aa - Buf->scroll);
+	term_set_y(this->ya - Buf->scroll);
 	return 0;
 }
 
@@ -337,8 +336,8 @@ static int cmd_do_move (struct command *this)
 {
 	if (cmd_do_delete(this))
 		return 1;
-	if (this->ac >= this->ab)
-		this->ac -= cmdclip_lines();
+	if (this->yc >= this->yb)
+		this->yc -= cmdclip_lines();
 	if (cmd_do_paste(this))
 		return 2;
 	return 0;
@@ -374,11 +373,11 @@ static int cmd_do_paste (struct command *this)
 	size_t len = strlen(cmdclip);
 
 	if (Buf->len + len + 1 >= Buf->siz) {
-		fprintf(stderr, "txt should be resized\n"); // FIXME
+		fprintf(stderr, "txt should be resized\n"); /* FIXME */
 		return 2;
 	}
 
-	int y = this->ac + 1;
+	int y = this->yc + 1;
 	int pos = buf_pos(Buf, y);
 
 	memmove(Buf->txt + pos + len, Buf->txt + pos, Buf->len - pos);
@@ -395,7 +394,7 @@ static int cmd_do_paste (struct command *this)
 
 static int cmd_do_scrollto (struct command *this)
 {
-	return scroll_to(this->aa);
+	return scroll_to(this->ya);
 }
 
 static int cmd_do_scroll (struct command *this)
@@ -421,8 +420,8 @@ static int cmd_do_transfer (struct command *this)
 
 static int cmd_do_yank (struct command *this)
 {
-	int ya = this->aa;
-	int yb = this->ab + 1;
+	int ya = this->ya;
+	int yb = this->yb + 1;
 	if (ya >= yb)
 		return 1;
 	if (cliptext(ya, yb, 0))
@@ -475,14 +474,14 @@ int cmd_update (struct command *cmd)
 {
 	int ma = 0, mb = 0, mc = 0;
 	cmd_reset(cmd);
-	ma = parseaddr(NULL, &cmd->aa);
-	if (parsecomma(ma ? NULL : &cmd->aa)) {
+	ma = parseaddr(NULL, &cmd->ya);
+	if (parsecomma(ma ? NULL : &cmd->ya)) {
 		ma++;
-		mb = parseaddr(&cmd->aa, &cmd->ab);
-		addrdefault(mb, &cmd->ab, ADDR_END);
+		mb = parseaddr(&cmd->ya, &cmd->yb);
+		addrdefault(mb, &cmd->yb, ADDR_END);
 	}
 	else {
-		cmd->ab = cmd->aa;
+		cmd->yb = cmd->ya;
 	}
 
 	switch (cmdline[clri++]) {
@@ -500,24 +499,24 @@ int cmd_update (struct command *cmd)
 		cmd->Do = &cmd_do_scrollback;
 		break;
 	case 'a':
-		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(ma, &cmd->ya, ADDR_CURRENT);
 		cmd->Do = &cmd_do_append;
 		break;
 	case 'd':
-		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
-		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
+		addrdefault(ma, &cmd->ya, ADDR_CURRENT);
+		addrdefault(mb, &cmd->yb, ADDR_CURRENT);
 		cmd->edit = EDIT_KIL | EDIT_SRC;
 		cmd->Do = &cmd_do_delete;
 		break;
 	case 'i':
-		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
+		addrdefault(ma, &cmd->ya, ADDR_CURRENT);
 		cmd->Do = &cmd_do_insert;
 		break;
 	case 'm':
-		mc = parseaddr(NULL, &cmd->ac);
-		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
-		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
-		addrdefault(mc, &cmd->ac, ADDR_CURRENT);
+		mc = parseaddr(NULL, &cmd->yc);
+		addrdefault(ma, &cmd->ya, ADDR_CURRENT);
+		addrdefault(mb, &cmd->yb, ADDR_CURRENT);
+		addrdefault(mc, &cmd->yc, ADDR_CURRENT);
 		cmd->edit = EDIT_KIL | EDIT_SRC | EDIT_DST;
 		cmd->Do = &cmd_do_move;
 		break;
@@ -528,25 +527,25 @@ int cmd_update (struct command *cmd)
 		cmd->Do = &cmd_do_quit;
 		break;
 	case 't':
-		mc = parseaddr(NULL, &cmd->ac);
-		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
-		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
-		addrdefault(mc, &cmd->ac, ADDR_CURRENT);
+		mc = parseaddr(NULL, &cmd->yc);
+		addrdefault(ma, &cmd->ya, ADDR_CURRENT);
+		addrdefault(mb, &cmd->yb, ADDR_CURRENT);
+		addrdefault(mc, &cmd->yc, ADDR_CURRENT);
 		cmd->edit = EDIT_SRC | EDIT_DST;
 		cmd->Do = &cmd_do_transfer;
 		break;
 	case 'x':
 		mc = ma;
-		cmd->ac = cmd->aa;
+		cmd->yc = cmd->ya;
 		ma = 0;
-		cmd->aa = 0;
-		addrdefault(mc, &cmd->ac, ADDR_CURRENT);
+		cmd->ya = 0;
+		addrdefault(mc, &cmd->yc, ADDR_CURRENT);
 		cmd->edit = EDIT_DST;
 		cmd->Do = &cmd_do_paste;
 		break;
 	case 'y':
-		addrdefault(ma, &cmd->aa, ADDR_CURRENT);
-		addrdefault(mb, &cmd->ab, ADDR_CURRENT);
+		addrdefault(ma, &cmd->ya, ADDR_CURRENT);
+		addrdefault(mb, &cmd->yb, ADDR_CURRENT);
 		cmd->edit = EDIT_SRC;
 		cmd->Do = &cmd_do_yank;
 		break;

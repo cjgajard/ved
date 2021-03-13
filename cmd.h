@@ -29,9 +29,9 @@ enum cmd_editflags {
 };
 
 struct command {
-	int aa;
-	int ab;
-	int ac;
+	int ya;
+	int yb;
+	int yc;
 	enum cmd_editflags edit;
 	int (*Do)(struct command *this);
 };

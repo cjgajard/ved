@@ -8,20 +8,21 @@ struct buf *Buf = NULL;
 
 int buf_lastline (struct buf *this)
 {
-	int addr = 0;
+	int y = 0;
 	size_t fpos = 0;
 	char byte;
 	while (fpos < this->len && (byte = this->txt[fpos++])) {
 		if (byte == '\n')
-			addr++;
+			y++;
 	}
-	return addr;
+	return y;
 }
 
 size_t buf_pos (struct buf *this, int y)
 {
+	int i;
 	size_t fpos = 0;
-	for (int i = 0; i < y; i++) {
+	for (i = 0; i < y; i++) {
 		while (fpos < this->len && this->txt[fpos++] != '\n');
 	}
 	return fpos;
@@ -41,8 +42,9 @@ size_t buf_save (struct buf *this, char *path)
 
 size_t buf_scroll_pos (struct buf *this)
 {
+	int i;
 	size_t fpos = 0;
-	for (int i = 0; i < this->scroll; i++) {
+	for (i = 0; i < this->scroll; i++) {
 		while (fpos < this->siz && this->txt[fpos++] != '\n');
 	}
 	return fpos;

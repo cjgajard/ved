@@ -13,8 +13,8 @@ struct buf {
 extern struct buf *Buf;
 
 int buf_lastline (struct buf *this);
-int buf_scroll (struct buf *this, int addr);
-int buf_addr (struct buf *this);
+int buf_scroll (struct buf *this, int y);
+int buf_y (struct buf *this);
 size_t buf_pos (struct buf *this, int y);
 size_t buf_save (struct buf *this, char *path);
 size_t buf_scroll_pos (struct buf *this);

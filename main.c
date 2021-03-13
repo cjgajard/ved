@@ -5,9 +5,12 @@
 #include "cmd.h"
 #include "term.h"
 
+#define COLUMN_MAX 32
+
 struct termcfg T;
 static struct command cmd = {0};
 
+static char column_buf[COLUMN_MAX];
 static char column_separator[] = "\x1b[37m|\x1b[0m";
 static char cur_color[] = "43";
 static char dst_color[] = "42";
@@ -18,7 +21,8 @@ static char mov_cur_color[] = "46";
 
 static int args_read (int argc, char *argv[])
 {
-	for (int i = 1; i < argc; i++) {
+	int i;
+	for (i = 1; i < argc; i++) {
 		struct buf *b = buf_create(argv[i]);
 		if (!b)
 			continue;
@@ -30,8 +34,9 @@ static int args_read (int argc, char *argv[])
 
 static int editor_uibg_draw (void)
 {
+	int y;
 	term_move_topleft();
-	for (int y = 0; y < T.lines; y++) {
+	for (y = 0; y < T.lines; y++) {
 		printf("\x1b[K~");
 		if (y < T.lines - 1)
 			printf("\r\n");
@@ -40,14 +45,14 @@ static int editor_uibg_draw (void)
 	return 0;
 }
 
-static char *line_color (int y)
+static char *line_color (int line)
 {
-	int addr = y + (Buf ? Buf->scroll : 0);
+	int y = line + (Buf ? Buf->scroll : 0);
 
-	if (cmd.edit & EDIT_DST && addr == cmd.ac)
+	if (cmd.edit & EDIT_DST && y == cmd.yc)
 		return dst_color;
 
-	int is_cursor = y == T.y;
+	int is_cursor = line == T.y;
 	char *range_color = NULL;
 	if (cmd.edit & EDIT_KIL)
 		range_color = is_cursor ? kil_cur_color : kil_color;
@@ -56,7 +61,7 @@ static char *line_color (int y)
 	else if (cmd.edit & EDIT_MOV)
 		range_color = mov_color;
 
-	if (range_color && (addr >= cmd.aa && addr <= cmd.ab))
+	if (range_color && (y >= cmd.ya && y <= cmd.yb))
 		return range_color;
 	if (is_cursor)
 		return cur_color;
@@ -65,6 +70,8 @@ static char *line_color (int y)
 
 static int editor_buf_draw (void)
 {
+	int y;
+	int linenr_w;
 	if (!Buf)
 		return 1;
 	if (!Buf->txt)
@@ -72,8 +79,10 @@ static int editor_buf_draw (void)
 	size_t fpos = buf_scroll_pos(Buf);
 
 	term_move_topleft();
-	int linenr_w = snprintf(NULL, 0, "%i", Buf->scroll + T.lines);
-	for (int y = 0; y < T.lines; y++) {
+	linenr_w = sprintf(column_buf, "%d", Buf->scroll + T.lines);
+	for (y = 0; y < T.lines; y++) {
+		int x;
+		int nextline;
 		printf("\x1b[K");
 
 		char *color = line_color(y);
@@ -84,8 +93,8 @@ static int editor_buf_draw (void)
 			printf("\x1b[0m");
 		printf("%s", column_separator);
 
-		int nextline = 0;
-		for (int x = 0; x < T.cols; x++) {
+		nextline = 0;
+		for (x = 0; x < T.cols; x++) {
 			char byte = ' ';
 			int is_tab = 0;
 			if (!nextline) {
@@ -128,8 +137,10 @@ static int editor_uifg_draw (void)
 
 static int editor_echo_draw (void)
 {
+	int i;
+	int len;
 	printf("\x1b[%dH\x1b[K:", T.lines + 2);
-	for (int i = 0, len = strlen(cmdline); i < len; i++)
+	for (i = 0, len = strlen(cmdline); i < len; i++)
 		ascii_fprintc(stdout, cmdline[i]);
 	term_commit();
 	return 0;
