@@ -75,18 +75,18 @@ int bufl_push (struct bufl **this, struct buf *b)
 int bufl_sprint (struct bufl *this, char *ptr)
 {
 	struct bufl *node = this;
+	int w = 0;
 	if (!node)
 		return 0;
 
 	while (node->next)
 		node = node->next;
 
-	int w = 0;
 	while (node) {
-		if (w)
-			w += sprintf(ptr + w, " ");
 		int color = bufl_isactive(node) ?
 			bufl_active_color_on : bufl_active_color_off;
+		if (w)
+			w += sprintf(ptr + w, " ");
 		if (color)
 			w += sprintf(ptr + w, "\x1b[%dm", color);
 		w += sprintf(ptr + w, "%s", node->value.path);

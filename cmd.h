@@ -9,7 +9,7 @@ enum cmd_uflags {
 	UPDATE_BUF = 1 << 1,
 	UPDATE_UI = 1 << 2,
 	UPDATE_CMD = 1 << 3,
-	UPDATE_RUN = 1 << 4,
+	UPDATE_RUN = 1 << 4
 };
 
 /*
@@ -25,7 +25,7 @@ enum cmd_editflags {
 	EDIT_KIL = 1 << 0,
 	EDIT_SRC = 1 << 1,
 	EDIT_DST = 1 << 2,
-	EDIT_MOV = 1 << 3,
+	EDIT_MOV = 1 << 3
 };
 
 struct command {

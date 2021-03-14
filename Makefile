@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c90 -Werror -Wall -Wextra
+CFLAGS = -std=c90 -Wall -Wextra -Wpedantic
 CLIB =
 
 OBJ = main.o term.o buf.o bufl.o cmd.o ascii.o

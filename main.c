@@ -48,12 +48,12 @@ static int editor_uibg_draw (void)
 static char *line_color (int line)
 {
 	int y = line + (Buf ? Buf->scroll : 0);
+	int is_cursor = line == T.y;
+	char *range_color = NULL;
 
 	if (cmd.edit & EDIT_DST && y == cmd.yc)
 		return dst_color;
 
-	int is_cursor = line == T.y;
-	char *range_color = NULL;
 	if (cmd.edit & EDIT_KIL)
 		range_color = is_cursor ? kil_cur_color : kil_color;
 	else if (cmd.edit & EDIT_SRC)
@@ -72,20 +72,22 @@ static int editor_buf_draw (void)
 {
 	int y;
 	int linenr_w;
+	size_t fpos;
 	if (!Buf)
 		return 1;
 	if (!Buf->txt)
 		return 2;
-	size_t fpos = buf_scroll_pos(Buf);
+	fpos = buf_scroll_pos(Buf);
 
 	term_move_topleft();
 	linenr_w = sprintf(column_buf, "%d", Buf->scroll + T.lines);
 	for (y = 0; y < T.lines; y++) {
 		int x;
 		int nextline;
+		char *color;
 		printf("\x1b[K");
 
-		char *color = line_color(y);
+		color = line_color(y);
 		if (color)
 			printf("\x1b[%sm", color);
 		printf("%*d", linenr_w, Buf->scroll + y + 1);
@@ -149,6 +151,7 @@ static int editor_echo_draw (void)
 int main (int argc, char *argv[])
 {
 	int error = 0;
+	int result = 0;
 	unsigned char c = 0;
 	args_read(argc, argv);
 	if (termcfg_init())
@@ -175,7 +178,7 @@ main_loop:
 		cmd_update(&cmd);
 		goto main_loop;
 	}
-	int result = cmd.Do ? cmd.Do(&cmd) : 0;
+	result = cmd.Do ? cmd.Do(&cmd) : 0;
 	if (result == CMD_QUIT)
 		goto shutdown;
 	cmd_reset(&cmd);

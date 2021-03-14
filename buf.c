@@ -31,11 +31,12 @@ size_t buf_pos (struct buf *this, int y)
 size_t buf_save (struct buf *this, char *path)
 {
 	char *fpath = path[0] ? path : this->path;
+	size_t w;
 	FILE *f;
 	if (!(f = fopen(fpath, "w"))) {
 		return 0;
 	}
-	size_t w = fwrite(this->txt, 1, this->len, f);
+	w = fwrite(this->txt, 1, this->len, f);
 	fclose(f);
 	return w;
 }
@@ -53,16 +54,17 @@ size_t buf_scroll_pos (struct buf *this)
 struct buf *buf_create (char *path)
 {
 	struct buf *this;
+	FILE *src;
+	long len = 0;
+	long size = 0;
 	if (!(this = malloc(sizeof(*this))))
 		return NULL;
 
-	FILE *src;
 	if (!(src = fopen(path, "r")))
 		return NULL;
 
 	fseek(src, 0, SEEK_END);
-	long len = ftell(src);
-	long size = 0;
+	len = ftell(src);
 	while (size < len + BUFADDITIONAL)
 		size += BUFSIZ;
 

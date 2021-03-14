@@ -30,13 +30,14 @@ static int cmd_do_quit (struct command *this);
 
 int buf_scroll (struct buf *this, int y)
 {
+	int last;
 	if (!this)
 		return 1;
 	if (y < 0) {
 		this->scroll = 0;
 		return 0;
 	}
-	int last = buf_lastline(this) - T.lines;
+	last = buf_lastline(this) - T.lines;
 	if (y > last)
 		this->scroll = last;
 	this->scroll = y;
@@ -53,7 +54,7 @@ enum addr {
 	ADDR_START = '0',
 	ADDR_END = '$',
 	ADDR_NEXT = '+',
-	ADDR_PREV = '-',
+	ADDR_PREV = '-'
 };
 
 int buf_at (struct buf *this, enum addr key)
@@ -85,6 +86,8 @@ static int parseaddr (int *ref, int *y_ptr) {
 	int y = 0;
 	int match = 0;
 	int is_rel = 0;
+	char memo[16];
+	int i = 0;
 
 	if (!Buf)
 		return 0;
@@ -97,8 +100,6 @@ static int parseaddr (int *ref, int *y_ptr) {
 		byte = cmdline[++clri];
 	}
 
-	char memo[16];
-	int i = 0;
 	if (byte == ADDR_NEXT || byte == ADDR_PREV) {
 		if (!match)
 			y = ref ? *ref : buf_at(Buf, ADDR_CURRENT);
@@ -176,14 +177,17 @@ static int cmdclip_lines (void)
 
 static int cliptext (int ya, int yb, int delete)
 {
+	size_t aa, ab, len;
+	char *target;
+
 	if (!Buf)
 		return 1;
 
-	size_t aa = buf_pos(Buf, ya);
-	size_t ab = buf_pos(Buf, yb);
-	size_t len = ab - aa;
+	aa = buf_pos(Buf, ya);
+	ab = buf_pos(Buf, yb);
+	len = ab - aa;
 
-	char *target = Buf->txt + aa;
+	target = Buf->txt + aa;
 	memcpy(cmdclip, target, len);
 	cmdclip[len] = 0;
 
@@ -199,18 +203,22 @@ static int cliptext (int ya, int yb, int delete)
 
 static int insert (int y)
 {
+	char *cmdstr = cmdline + clri;
+	size_t cmdlen = strlen(cmdstr);
+	int pos;
+
 	if (!Buf)
 		return 1;
 
-	char *cmdstr = cmdline + clri;
-	size_t cmdlen = strlen(cmdstr);
+	cmdstr = cmdline + clri;
+	cmdlen = strlen(cmdstr);
 
 	if (Buf->len + cmdlen + 2 >= Buf->siz) {
 		fprintf(stderr, "txt should be resized\n"); /* FIXME */
 		return 2;
 	}
 
-	int pos = buf_pos(Buf, y);
+	pos = buf_pos(Buf, y);
 
 	memmove(Buf->txt + pos + cmdlen + 1, Buf->txt + pos, Buf->len - pos);
 	memcpy(Buf->txt + pos, cmdstr, cmdlen);
@@ -236,9 +244,9 @@ static int scroll_to (int ya)
 
 static int scroll_page (int back)
 {
+	int y = (back ? -1 : 1) * T.lines;
 	if (!Buf)
 		return 1;
-	int y = (back ? -1 : 1) * T.lines;
 	buf_scroll(Buf, Buf->scroll + y);
 	cluf |= UPDATE_BUF;
 	return 0;
@@ -303,7 +311,7 @@ static int cmd_do_fs (struct command *this)
 		case 'w':
 			if (!Buf)
 				return 2;
-			sprintf(cmdmsg, "%zu", buf_save(Buf, cmdline + clri));
+			sprintf(cmdmsg, "%lu", buf_save(Buf, cmdline + clri));
 			break;
 		default:
 			return 0;
@@ -367,25 +375,26 @@ static int cmd_do_movement (struct command *this)
 
 static int cmd_do_paste (struct command *this)
 {
+	int count, y, pos;
+	size_t len = strlen(cmdclip);
+
 	if (!Buf)
 		return 1;
-
-	size_t len = strlen(cmdclip);
 
 	if (Buf->len + len + 1 >= Buf->siz) {
 		fprintf(stderr, "txt should be resized\n"); /* FIXME */
 		return 2;
 	}
 
-	int y = this->yc + 1;
-	int pos = buf_pos(Buf, y);
+	y = this->yc + 1;
+	pos = buf_pos(Buf, y);
 
 	memmove(Buf->txt + pos + len, Buf->txt + pos, Buf->len - pos);
 	memcpy(Buf->txt + pos, cmdclip, len);
 	Buf->len += len;
 	Buf->txt[Buf->len] = 0;
 
-	int count = cmdclip_lines();
+	count = cmdclip_lines();
 	moveto(y + count - 1);
 
 	cluf |= UPDATE_BUF;

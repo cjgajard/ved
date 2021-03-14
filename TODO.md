@@ -15,11 +15,11 @@
     - [x] Make @20 `10,+2`  be equivalent to `10,12` <!-- ed 10,22 -->
     - [x] Make @20 `10,.+2` be equivalent to `10,22`
 - [x] Clean address parsing
+- [ ] Add `y-cursor` and `position-cursor` to buffer
+    - [ ] Unify `y`, `addr`, `pos` notation
 - [ ] Draw buffer line by line
     - [ ] Redraw single target line after command
     - [ ] Allow range draw/redraw
-- [ ] Unify `y`, `addr`, `pos` notation
-- [ ] Add `y-cursor` and `position-cursor` to buffer
 - [ ] Add tests kappa
 - [ ] Use `window`s
 - [ ] Horizontal movement
